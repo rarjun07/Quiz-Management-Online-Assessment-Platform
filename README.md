@@ -29,6 +29,13 @@ A full-stack internship project for building an online quiz management and asses
 - Register, login, logout, and current-user routes added
 - PostgreSQL session wiring kept ready for the next step
 
+## Day 3 Progress
+
+- Role-based authorization helpers added
+- Admin and student protected routes added
+- Auth role inspection route added
+- Backend is now ready for protected dashboard work
+
 ## Planned Structure
 
 ```text

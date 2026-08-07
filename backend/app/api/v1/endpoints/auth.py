@@ -52,3 +52,7 @@ def logout(current_user: User = Depends(get_current_user)) -> dict[str, str]:
 def read_current_user(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
+
+@router.get("/role")
+def read_current_role(current_user: User = Depends(get_current_user)) -> dict[str, str]:
+    return {"role": current_user.role.value, "status": current_user.status.value}
