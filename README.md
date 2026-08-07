@@ -20,6 +20,14 @@ A full-stack internship project for building an online quiz management and asses
 - Repository scaffold created
 - Backend and frontend project structure started
 - Environment template added
+- First commit recorded locally
+
+## Day 2 Progress
+
+- FastAPI app wiring added
+- Authentication schema, model, and security helpers added
+- Register, login, logout, and current-user routes added
+- PostgreSQL session wiring kept ready for the next step
 
 ## Planned Structure
 
@@ -35,5 +43,4 @@ QuizNest/
 
 ## Next Step
 
-Implement the FastAPI backend foundation and database connection setup.
-
+Implement authentication endpoints, then connect the backend to PostgreSQL and start the React frontend scaffold.
