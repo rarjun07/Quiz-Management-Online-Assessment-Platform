@@ -36,6 +36,13 @@ A full-stack internship project for building an online quiz management and asses
 - Auth role inspection route added
 - Backend is now ready for protected dashboard work
 
+## Day 4 Progress
+
+- Admin dashboard stats endpoint added
+- Admin user listing, lookup, status update, and delete routes added
+- Search and filter support added for admin user management
+- Backend now has a usable control-panel foundation
+
 ## Planned Structure
 
 ```text
