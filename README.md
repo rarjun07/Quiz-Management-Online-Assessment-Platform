@@ -57,4 +57,5 @@ QuizNest/
 
 ## Next Step
 
-Implement authentication endpoints, then connect the backend to PostgreSQL and start the React frontend scaffold.
+Implement quiz management CRUD, publish/unpublish flow, and the quiz data model.
+
