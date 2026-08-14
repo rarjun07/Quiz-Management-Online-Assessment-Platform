@@ -150,6 +150,7 @@ export default function App() {
   const [selectedAttemptReview, setSelectedAttemptReview] = useState(null)
   const [studentDashboard, setStudentDashboard] = useState(null)
   const [adminStats, setAdminStats] = useState(null)
+  const [adminAnalytics, setAdminAnalytics] = useState(null)
   const [adminUsers, setAdminUsers] = useState([])
   const [quizzes, setQuizzes] = useState([])
   const [categories, setCategories] = useState([])
@@ -433,6 +434,7 @@ export default function App() {
   useEffect(() => {
     if (!token || user?.role !== 'ADMIN') {
       setAdminStats(null)
+      setAdminAnalytics(null)
       setAdminUsers([])
       setQuizzes([])
       setCategories([])
@@ -452,14 +454,16 @@ export default function App() {
           params.set('status', adminStatusFilter)
         }
 
-        const [stats, users] = await Promise.all([
+        const [stats, users, analytics] = await Promise.all([
           request('/admin/dashboard', { token }),
           request(`/admin/users${params.toString() ? `?${params.toString()}` : ''}`, { token }),
+          request('/admin/analytics', { token }),
         ])
 
         if (!cancelled) {
           setAdminStats(stats)
           setAdminUsers(users.items ?? [])
+          setAdminAnalytics(analytics)
         }
       } catch (err) {
         if (!cancelled) {
@@ -662,12 +666,14 @@ export default function App() {
         params.set('status', adminStatusFilter)
       }
 
-      const [stats, users] = await Promise.all([
+      const [stats, users, analytics] = await Promise.all([
         request('/admin/dashboard', { token }),
         request(`/admin/users${params.toString() ? `?${params.toString()}` : ''}`, { token }),
+        request('/admin/analytics', { token }),
       ])
       setAdminStats(stats)
       setAdminUsers(users.items ?? [])
+      setAdminAnalytics(analytics)
       setAdminMessage('Admin data refreshed.')
     } catch (err) {
       setAdminMessage(err instanceof Error ? err.message : 'Refresh failed')
@@ -1243,10 +1249,131 @@ export default function App() {
                 <StatCard label="Published quizzes" value={adminStats.published_quizzes} />
                 <StatCard label="Draft quizzes" value={adminStats.draft_quizzes} />
                 <StatCard label="Unpublished quizzes" value={adminStats.unpublished_quizzes} />
+                <StatCard label="Quiz attempts" value={adminStats.total_quiz_attempts} />
                 <StatCard label="Avg score" value={`${adminStats.average_score}%`} />
               </div>
             ) : (
               <p className="helper">Loading admin statistics...</p>
+            )}
+
+            {adminAnalytics ? (
+              <section className="table-card analytics-panel">
+                <div className="table-heading">
+                  <h3>Analytics overview</h3>
+                  <span>{adminAnalytics.completed_attempts} completed attempts</span>
+                </div>
+                <div className="stats-grid analytics-stats">
+                  <StatCard label="Passed" value={adminAnalytics.passed_attempts} />
+                  <StatCard label="Failed" value={adminAnalytics.failed_attempts} />
+                  <StatCard label="Average score" value={`${adminAnalytics.average_score}%`} />
+                  <StatCard label="Best score" value={`${adminAnalytics.best_score}%`} />
+                </div>
+
+                <div className="analytics-grid">
+                  <div className="analytics-card">
+                    <div className="table-heading">
+                      <h4>Quiz statistics</h4>
+                      <span>{adminAnalytics.quiz_performance.length} quizzes</span>
+                    </div>
+                    <div className="analytics-list">
+                      {adminAnalytics.quiz_performance.length > 0 ? (
+                        adminAnalytics.quiz_performance.map((item) => (
+                          <article className="analytics-row" key={item.quiz_id}>
+                            <div className="analytics-meta">
+                              <strong>{item.quiz_title}</strong>
+                              <span>{item.category}</span>
+                            </div>
+                            <div className="analytics-bar">
+                              <div className="analytics-fill" style={{ width: `${Math.max(6, item.average_score)}%` }} />
+                            </div>
+                            <div className="analytics-values">
+                              <span>{item.attempts} attempts</span>
+                              <span>{item.average_score}% avg</span>
+                            </div>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="helper">Quiz analytics will appear after students submit attempts.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="analytics-card">
+                    <div className="table-heading">
+                      <h4>Pass/fail breakdown</h4>
+                      <span>{adminAnalytics.category_performance.length} categories</span>
+                    </div>
+                    <div className="analytics-list">
+                      {adminAnalytics.category_performance.length > 0 ? (
+                        adminAnalytics.category_performance.map((item) => (
+                          <article className="analytics-row" key={item.category}>
+                            <div className="analytics-meta">
+                              <strong>{item.category}</strong>
+                              <span>{item.quizzes} quizzes</span>
+                            </div>
+                            <div className="analytics-bar">
+                              <div className="analytics-fill category" style={{ width: `${Math.max(6, item.average_score)}%` }} />
+                            </div>
+                            <div className="analytics-values">
+                              <span>{item.attempts} attempts</span>
+                              <span>{item.passed_attempts} passed</span>
+                            </div>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="helper">Category-level performance will show up after more attempts.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="analytics-recent">
+                  <div className="table-heading">
+                    <h4>Recent attempts</h4>
+                    <span>{adminAnalytics.recent_attempts.length} shown</span>
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Student</th>
+                          <th>Quiz</th>
+                          <th>Score</th>
+                          <th>Status</th>
+                          <th>Submitted</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adminAnalytics.recent_attempts.map((attempt) => (
+                          <tr key={attempt.attempt_id}>
+                            <td>
+                              <strong>{attempt.user_name}</strong>
+                              <p className="table-note">{attempt.user_email}</p>
+                            </td>
+                            <td>{attempt.quiz_title}</td>
+                            <td>{attempt.percentage}%</td>
+                            <td>
+                              <span className={attempt.passed ? 'status-pill active' : 'status-pill inactive'}>
+                                {attempt.passed ? 'Passed' : 'Failed'}
+                              </span>
+                            </td>
+                            <td>{new Date(attempt.submitted_at).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                        {adminAnalytics.recent_attempts.length === 0 ? (
+                          <tr>
+                            <td colSpan="5">No completed attempts yet.</td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="table-card">
+                <p className="helper">Loading admin analytics...</p>
+              </section>
             )}
 
             <div className="filters-panel">
