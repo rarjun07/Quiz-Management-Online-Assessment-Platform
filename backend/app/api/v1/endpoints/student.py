@@ -5,17 +5,21 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.crud.attempt import create_attempt, save_attempt_answers
+from app.crud.attempt_result import upsert_attempt_result
 from app.dependencies import get_db
 from app.dependencies import require_student
 from app.models.attempt import Attempt
 from app.models.attempt_answer import AttemptAnswer
 from app.models.option import Option
 from app.models.question import Question
+from app.models.attempt_result import AttemptResult
 from app.models.quiz import Quiz
 from app.models.user import User
 from app.schemas.auth import UserRead
 from app.schemas.student_quiz import (
     StudentAttemptQuestionResult,
+    StudentAttemptHistoryItem,
+    StudentAttemptHistoryResponse,
     StudentAttemptSubmitRequest,
     StudentAttemptSubmitResponse,
     StudentQuizDetail,
@@ -27,6 +31,58 @@ from app.schemas.student_quiz import (
 )
 
 router = APIRouter(prefix="/student", tags=["Student"])
+
+
+def build_attempt_review_response(db: Session, attempt: Attempt, quiz: Quiz, result: AttemptResult) -> StudentAttemptSubmitResponse:
+    questions = (
+        db.query(Question)
+        .options(selectinload(Question.options))
+        .filter(Question.quiz_id == quiz.id)
+        .order_by(Question.created_at.asc())
+        .all()
+    )
+    answer_rows = db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).all()
+    answers_by_question = {answer.question_id: answer.selected_option_id for answer in answer_rows}
+
+    question_results: list[StudentAttemptQuestionResult] = []
+    for question in questions:
+        selected_option_id = answers_by_question.get(question.id)
+        selected_option = next((option for option in question.options if option.id == selected_option_id), None)
+        correct_option = next((option for option in question.options if option.is_correct), None)
+        is_correct = bool(selected_option and selected_option.is_correct)
+        question_results.append(
+            StudentAttemptQuestionResult(
+                question_id=question.id,
+                question_text=question.question_text,
+                selected_option_id=selected_option.id if selected_option else selected_option_id,
+                selected_option_text=selected_option.option_text if selected_option else None,
+                correct_option_id=correct_option.id if correct_option else None,
+                correct_option_text=correct_option.option_text if correct_option else None,
+                marks=question.marks,
+                marks_awarded=question.marks if is_correct else 0,
+                is_correct=is_correct,
+                explanation=question.explanation,
+            )
+        )
+
+    return StudentAttemptSubmitResponse(
+        attempt_id=attempt.id,
+        quiz_id=quiz.id,
+        quiz_title=quiz.title,
+        total_questions=len(questions),
+        correct_count=result.correct_count,
+        incorrect_count=result.incorrect_count,
+        unanswered_count=result.unanswered_count,
+        score=result.score,
+        total_marks=result.total_marks,
+        percentage=result.percentage,
+        passing_score=quiz.passing_score,
+        passed=result.passed,
+        status=attempt.status,
+        submitted_at=result.submitted_at,
+        time_taken_seconds=result.time_taken_seconds,
+        results=question_results,
+    )
 
 
 @router.get("/me", response_model=UserRead)
@@ -144,6 +200,42 @@ def start_quiz(
     )
 
 
+@router.get("/attempts", response_model=StudentAttemptHistoryResponse)
+def list_attempt_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student),
+) -> StudentAttemptHistoryResponse:
+    attempts = (
+        db.query(Attempt, Quiz, AttemptResult)
+        .join(Quiz, Quiz.id == Attempt.quiz_id)
+        .outerjoin(AttemptResult, AttemptResult.attempt_id == Attempt.id)
+        .filter(Attempt.user_id == current_user.id)
+        .order_by(Attempt.started_at.desc())
+        .all()
+    )
+    items = [
+        StudentAttemptHistoryItem(
+            attempt_id=attempt.id,
+            quiz_id=quiz.id,
+            quiz_title=quiz.title,
+            status=attempt.status,
+            started_at=attempt.started_at,
+            expires_at=attempt.expires_at,
+            submitted_at=result.submitted_at if result else None,
+            score=result.score if result else None,
+            total_marks=result.total_marks if result else None,
+            percentage=result.percentage if result else None,
+            correct_count=result.correct_count if result else None,
+            incorrect_count=result.incorrect_count if result else None,
+            unanswered_count=result.unanswered_count if result else None,
+            passed=result.passed if result else None,
+            time_taken_seconds=result.time_taken_seconds if result else None,
+        )
+        for attempt, quiz, result in attempts
+    ]
+    return StudentAttemptHistoryResponse(items=items, total=len(items))
+
+
 @router.post("/attempts/{attempt_id}/submit", response_model=StudentAttemptSubmitResponse)
 def submit_quiz_attempt(
     attempt_id: int,
@@ -223,23 +315,55 @@ def submit_quiz_attempt(
     percentage = round((score / total_marks) * 100, 2) if total_marks else 0.0
     passed = percentage >= quiz.passing_score
     attempt.status = "SUBMITTED"
-    db.commit()
+    result = upsert_attempt_result(
+        db,
+        attempt_id=attempt.id,
+        quiz_id=quiz.id,
+        user_id=current_user.id,
+        score=score,
+        total_marks=total_marks,
+        percentage=percentage,
+        correct_count=correct_count,
+        incorrect_count=incorrect_count,
+        unanswered_count=unanswered_count,
+        passed=passed,
+        submitted_at=submitted_at,
+        time_taken_seconds=time_taken_seconds,
+    )
 
     return StudentAttemptSubmitResponse(
         attempt_id=attempt.id,
         quiz_id=quiz.id,
         quiz_title=quiz.title,
         total_questions=len(questions),
-        correct_count=correct_count,
-        incorrect_count=incorrect_count,
-        unanswered_count=unanswered_count,
-        score=score,
-        total_marks=total_marks,
-        percentage=percentage,
+        correct_count=result.correct_count,
+        incorrect_count=result.incorrect_count,
+        unanswered_count=result.unanswered_count,
+        score=result.score,
+        total_marks=result.total_marks,
+        percentage=result.percentage,
         passing_score=quiz.passing_score,
-        passed=passed,
+        passed=result.passed,
         status=attempt.status,
-        submitted_at=submitted_at,
-        time_taken_seconds=time_taken_seconds,
+        submitted_at=result.submitted_at,
+        time_taken_seconds=result.time_taken_seconds,
         results=results,
     )
+
+
+@router.get("/attempts/{attempt_id}", response_model=StudentAttemptSubmitResponse)
+def read_attempt_review(
+    attempt_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student),
+) -> StudentAttemptSubmitResponse:
+    attempt = db.query(Attempt).filter(Attempt.id == attempt_id, Attempt.user_id == current_user.id).first()
+    if attempt is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found")
+    result = db.query(AttemptResult).filter(AttemptResult.attempt_id == attempt.id).first()
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Attempt has not been submitted yet")
+    quiz = db.query(Quiz).filter(Quiz.id == attempt.quiz_id, Quiz.is_published.is_(True)).first()
+    if quiz is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    return build_attempt_review_response(db, attempt, quiz, result)

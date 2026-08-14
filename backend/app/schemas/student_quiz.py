@@ -108,3 +108,26 @@ class StudentAttemptSubmitResponse(BaseModel):
     submitted_at: datetime
     time_taken_seconds: int
     results: list[StudentAttemptQuestionResult] = Field(default_factory=list)
+
+
+class StudentAttemptHistoryItem(BaseModel):
+    attempt_id: int
+    quiz_id: int
+    quiz_title: str
+    status: str
+    started_at: datetime
+    expires_at: datetime
+    submitted_at: datetime | None = None
+    score: int | None = None
+    total_marks: int | None = None
+    percentage: float | None = None
+    correct_count: int | None = None
+    incorrect_count: int | None = None
+    unanswered_count: int | None = None
+    passed: bool | None = None
+    time_taken_seconds: int | None = None
+
+
+class StudentAttemptHistoryResponse(BaseModel):
+    items: list[StudentAttemptHistoryItem] = Field(default_factory=list)
+    total: int

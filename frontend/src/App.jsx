@@ -135,6 +135,9 @@ export default function App() {
   const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [studentSubmissionResult, setStudentSubmissionResult] = useState(null)
   const [submittingAttempt, setSubmittingAttempt] = useState(false)
+  const [studentAttempts, setStudentAttempts] = useState([])
+  const [selectedAttemptHistoryId, setSelectedAttemptHistoryId] = useState('')
+  const [selectedAttemptReview, setSelectedAttemptReview] = useState(null)
   const [adminStats, setAdminStats] = useState(null)
   const [adminUsers, setAdminUsers] = useState([])
   const [quizzes, setQuizzes] = useState([])
@@ -241,6 +244,9 @@ export default function App() {
       setStudentAnswers({})
       setStudentSubmissionResult(null)
       setSubmittingAttempt(false)
+      setStudentAttempts([])
+      setSelectedAttemptHistoryId('')
+      setSelectedAttemptReview(null)
       setCurrentQuestionIndex(0)
       setRemainingSeconds(0)
       return
@@ -271,6 +277,62 @@ export default function App() {
       cancelled = true
     }
   }, [token, user?.role, selectedStudentQuizId])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'STUDENT') {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadStudentAttempts() {
+      try {
+        const data = await request('/student/attempts', { token })
+        if (!cancelled) {
+          setStudentAttempts(data.items ?? [])
+          if (!selectedAttemptHistoryId && (data.items ?? []).length > 0) {
+            const latestAttempt = (data.items ?? []).find((item) => item.status === 'SUBMITTED') ?? data.items[0]
+            setSelectedAttemptHistoryId(String(latestAttempt.attempt_id))
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setProbeMessage(err instanceof Error ? err.message : 'Unable to load attempt history')
+        }
+      }
+    }
+
+    loadStudentAttempts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'STUDENT' || !selectedAttemptHistoryId) {
+      setSelectedAttemptReview(null)
+      return
+    }
+
+    let cancelled = false
+
+    request(`/student/attempts/${selectedAttemptHistoryId}`, { token })
+      .then((data) => {
+        if (!cancelled) {
+          setSelectedAttemptReview(data)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProbeMessage(err instanceof Error ? err.message : 'Unable to load attempt review')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role, selectedAttemptHistoryId])
 
   useEffect(() => {
     if (!token || user?.role !== 'STUDENT' || !selectedStudentQuizId) {
@@ -905,6 +967,8 @@ export default function App() {
       })
       setStudentStartInfo(data)
       setStudentSubmissionResult(null)
+      setSelectedAttemptHistoryId('')
+      setSelectedAttemptReview(null)
       setCurrentQuestionIndex(0)
       setRemainingSeconds(Math.max(0, Math.floor((new Date(data.expires_at).getTime() - Date.now()) / 1000)))
       setStudentAnswers({})
@@ -943,7 +1007,28 @@ export default function App() {
         body: JSON.stringify(payload),
       })
       setStudentSubmissionResult(result)
+      setSelectedAttemptHistoryId(String(result.attempt_id))
+      setSelectedAttemptReview(result)
       setStudentStartInfo(null)
+      setStudentAttempts((current) =>
+        current.map((item) =>
+          item.attempt_id === result.attempt_id
+            ? {
+                ...item,
+                status: result.status,
+                submitted_at: result.submitted_at,
+                score: result.score,
+                total_marks: result.total_marks,
+                percentage: result.percentage,
+                correct_count: result.correct_count,
+                incorrect_count: result.incorrect_count,
+                unanswered_count: result.unanswered_count,
+                passed: result.passed,
+                time_taken_seconds: result.time_taken_seconds,
+              }
+            : item,
+        ),
+      )
       setNotice(isAutoSubmit ? 'Time is up. The quiz was submitted automatically.' : 'Quiz submitted successfully.')
     } catch (err) {
       setProbeMessage(err instanceof Error ? err.message : 'Unable to submit quiz')
@@ -954,6 +1039,7 @@ export default function App() {
 
   const activeStudentQuestion = selectedStudentQuiz?.questions?.[currentQuestionIndex] ?? null
   const answeredCount = Object.keys(studentAnswers).length
+  const activeAttemptReview = selectedAttemptReview ?? studentSubmissionResult
 
   return (
     <main className="shell">
@@ -1818,45 +1904,45 @@ export default function App() {
                       <p className="helper">Start the quiz to begin the timer and question navigation.</p>
                     )}
 
-                    {studentSubmissionResult ? (
+                    {activeAttemptReview ? (
                       <div className="result-panel">
                         <div className="table-heading">
                           <h3>Result summary</h3>
-                          <span className={studentSubmissionResult.passed ? 'status-pill active' : 'status-pill inactive'}>
-                            {studentSubmissionResult.passed ? 'Passed' : 'Failed'}
+                          <span className={activeAttemptReview.passed ? 'status-pill active' : 'status-pill inactive'}>
+                            {activeAttemptReview.passed ? 'Passed' : 'Failed'}
                           </span>
                         </div>
                         <div className="detail-grid">
                           <div>
                             <span>Score</span>
                             <strong>
-                              {studentSubmissionResult.score}/{studentSubmissionResult.total_marks}
+                              {activeAttemptReview.score}/{activeAttemptReview.total_marks}
                             </strong>
                           </div>
                           <div>
                             <span>Percentage</span>
-                            <strong>{studentSubmissionResult.percentage}%</strong>
+                            <strong>{activeAttemptReview.percentage}%</strong>
                           </div>
                           <div>
                             <span>Correct</span>
-                            <strong>{studentSubmissionResult.correct_count}</strong>
+                            <strong>{activeAttemptReview.correct_count}</strong>
                           </div>
                           <div>
                             <span>Incorrect</span>
-                            <strong>{studentSubmissionResult.incorrect_count}</strong>
+                            <strong>{activeAttemptReview.incorrect_count}</strong>
                           </div>
                           <div>
                             <span>Unanswered</span>
-                            <strong>{studentSubmissionResult.unanswered_count}</strong>
+                            <strong>{activeAttemptReview.unanswered_count}</strong>
                           </div>
                           <div>
                             <span>Time taken</span>
-                            <strong>{studentSubmissionResult.time_taken_seconds}s</strong>
+                            <strong>{activeAttemptReview.time_taken_seconds}s</strong>
                           </div>
                         </div>
 
                         <div className="result-review">
-                          {studentSubmissionResult.results.map((item, index) => (
+                          {activeAttemptReview.results.map((item, index) => (
                             <article key={item.question_id} className="review-card">
                               <div className="table-heading">
                                 <h4>
@@ -1889,6 +1975,75 @@ export default function App() {
                         </div>
                       </div>
                     ) : null}
+
+                    <section className="table-card attempt-history">
+                      <div className="table-heading">
+                        <h3>Attempt history</h3>
+                        <span>{studentAttempts.length} attempts</span>
+                      </div>
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Quiz</th>
+                              <th>Status</th>
+                              <th>Score</th>
+                              <th>Result</th>
+                              <th>Submitted</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {studentAttempts.map((attempt) => (
+                              <tr key={attempt.attempt_id}>
+                                <td>
+                                  <strong>{attempt.quiz_title}</strong>
+                                  <p className="table-note">Attempt #{attempt.attempt_id}</p>
+                                </td>
+                                <td>
+                                  <span className={`status-pill ${attempt.status === 'SUBMITTED' ? 'active' : 'inactive'}`}>
+                                    {attempt.status}
+                                  </span>
+                                </td>
+                                <td>
+                                  {attempt.score != null && attempt.total_marks != null
+                                    ? `${attempt.score}/${attempt.total_marks}`
+                                    : '-'}
+                                </td>
+                                <td>
+                                  {attempt.percentage != null ? `${attempt.percentage}%` : '-'}
+                                  {attempt.passed != null ? (
+                                    <p className="table-note">{attempt.passed ? 'Passed' : 'Failed'}</p>
+                                  ) : null}
+                                </td>
+                                <td>
+                                  {attempt.submitted_at
+                                    ? new Date(attempt.submitted_at).toLocaleString()
+                                    : 'Not submitted'}
+                                </td>
+                                <td>
+                                  <div className="table-actions">
+                                    <button
+                                      className="secondary"
+                                      type="button"
+                                      disabled={attempt.status !== 'SUBMITTED'}
+                                      onClick={() => setSelectedAttemptHistoryId(String(attempt.attempt_id))}
+                                    >
+                                      View review
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                            {studentAttempts.length === 0 ? (
+                              <tr>
+                                <td colSpan="6">No attempts found yet.</td>
+                              </tr>
+                            ) : null}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
                   </section>
                 ) : null}
               </div>
