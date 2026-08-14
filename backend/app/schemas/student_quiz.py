@@ -67,3 +67,44 @@ class StudentQuizStartResponse(BaseModel):
     expires_at: datetime
     duration: int
     question_count: int
+
+
+class StudentAttemptAnswerIn(BaseModel):
+    question_id: int
+    selected_option_id: int | None = None
+
+
+class StudentAttemptSubmitRequest(BaseModel):
+    answers: list[StudentAttemptAnswerIn] = Field(default_factory=list)
+
+
+class StudentAttemptQuestionResult(BaseModel):
+    question_id: int
+    question_text: str
+    selected_option_id: int | None = None
+    selected_option_text: str | None = None
+    correct_option_id: int | None = None
+    correct_option_text: str | None = None
+    marks: int
+    marks_awarded: int
+    is_correct: bool
+    explanation: str | None = None
+
+
+class StudentAttemptSubmitResponse(BaseModel):
+    attempt_id: int
+    quiz_id: int
+    quiz_title: str
+    total_questions: int
+    correct_count: int
+    incorrect_count: int
+    unanswered_count: int
+    score: int
+    total_marks: int
+    percentage: float
+    passing_score: int
+    passed: bool
+    status: str
+    submitted_at: datetime
+    time_taken_seconds: int
+    results: list[StudentAttemptQuestionResult] = Field(default_factory=list)

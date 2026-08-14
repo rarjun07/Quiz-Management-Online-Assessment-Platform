@@ -20,3 +20,16 @@ def create_attempt(db: Session, quiz: Quiz, user: User) -> Attempt:
     db.commit()
     db.refresh(attempt)
     return attempt
+
+
+def save_attempt_answers(db: Session, attempt_id: int, answer_rows: list[dict[str, int | None]]) -> None:
+    from app.models.attempt_answer import AttemptAnswer
+
+    for answer_row in answer_rows:
+        db.add(
+            AttemptAnswer(
+                attempt_id=attempt_id,
+                question_id=int(answer_row["question_id"]),
+                selected_option_id=answer_row.get("selected_option_id"),
+            )
+        )

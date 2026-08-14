@@ -133,6 +133,8 @@ export default function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [studentAnswers, setStudentAnswers] = useState({})
   const [remainingSeconds, setRemainingSeconds] = useState(0)
+  const [studentSubmissionResult, setStudentSubmissionResult] = useState(null)
+  const [submittingAttempt, setSubmittingAttempt] = useState(false)
   const [adminStats, setAdminStats] = useState(null)
   const [adminUsers, setAdminUsers] = useState([])
   const [quizzes, setQuizzes] = useState([])
@@ -237,6 +239,8 @@ export default function App() {
       setSelectedStudentQuiz(null)
       setStudentStartInfo(null)
       setStudentAnswers({})
+      setStudentSubmissionResult(null)
+      setSubmittingAttempt(false)
       setCurrentQuestionIndex(0)
       setRemainingSeconds(0)
       return
@@ -283,6 +287,8 @@ export default function App() {
           setCurrentQuestionIndex(0)
           setStudentAnswers({})
           setStudentStartInfo(null)
+          setStudentSubmissionResult(null)
+          setSubmittingAttempt(false)
           setRemainingSeconds(data.duration * 60)
         }
       })
@@ -314,6 +320,16 @@ export default function App() {
     const interval = window.setInterval(tick, 1000)
     return () => window.clearInterval(interval)
   }, [studentStartInfo?.expires_at])
+
+  useEffect(() => {
+    if (!studentStartInfo || studentSubmissionResult || submittingAttempt) {
+      return
+    }
+
+    if (remainingSeconds === 0) {
+      void submitAttempt(true)
+    }
+  }, [remainingSeconds, studentStartInfo, studentSubmissionResult, submittingAttempt])
 
   useEffect(() => {
     if (!token || user?.role !== 'ADMIN') {
@@ -888,8 +904,10 @@ export default function App() {
         token,
       })
       setStudentStartInfo(data)
+      setStudentSubmissionResult(null)
       setCurrentQuestionIndex(0)
       setRemainingSeconds(Math.max(0, Math.floor((new Date(data.expires_at).getTime() - Date.now()) / 1000)))
+      setStudentAnswers({})
       setNotice('Quiz started. Timer is running.')
     } catch (err) {
       setProbeMessage(err instanceof Error ? err.message : 'Unable to start quiz')
@@ -903,7 +921,39 @@ export default function App() {
     }))
   }
 
+  async function submitAttempt(isAutoSubmit = false) {
+    if (!studentStartInfo || submittingAttempt || studentSubmissionResult) {
+      return
+    }
+
+    setSubmittingAttempt(true)
+    setProbeMessage('')
+
+    try {
+      const payload = {
+        answers: Object.entries(studentAnswers).map(([questionId, selectedOptionId]) => ({
+          question_id: Number(questionId),
+          selected_option_id: selectedOptionId,
+        })),
+      }
+
+      const result = await request(`/student/attempts/${studentStartInfo.attempt_id}/submit`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify(payload),
+      })
+      setStudentSubmissionResult(result)
+      setStudentStartInfo(null)
+      setNotice(isAutoSubmit ? 'Time is up. The quiz was submitted automatically.' : 'Quiz submitted successfully.')
+    } catch (err) {
+      setProbeMessage(err instanceof Error ? err.message : 'Unable to submit quiz')
+    } finally {
+      setSubmittingAttempt(false)
+    }
+  }
+
   const activeStudentQuestion = selectedStudentQuiz?.questions?.[currentQuestionIndex] ?? null
+  const answeredCount = Object.keys(studentAnswers).length
 
   return (
     <main className="shell">
@@ -1686,6 +1736,10 @@ export default function App() {
                         <span>Questions</span>
                         <strong>{studentStartInfo.question_count}</strong>
                       </div>
+                      <div>
+                        <span>Answered</span>
+                        <strong>{answeredCount}</strong>
+                      </div>
                     </div>
 
                     {activeStudentQuestion ? (
@@ -1721,6 +1775,7 @@ export default function App() {
                                   type="radio"
                                   name={`question-${activeStudentQuestion.id}`}
                                   checked={studentAnswers[activeStudentQuestion.id] === option.id}
+                                  disabled={Boolean(studentSubmissionResult)}
                                   onChange={() => selectAnswer(activeStudentQuestion.id, option.id)}
                                 />
                                 <span>{option.option_text}</span>
@@ -1748,12 +1803,92 @@ export default function App() {
                             >
                               Next
                             </button>
+                            <button
+                              className="primary"
+                              type="button"
+                              disabled={submittingAttempt || Boolean(studentSubmissionResult)}
+                              onClick={() => submitAttempt(false)}
+                            >
+                              {submittingAttempt ? 'Submitting...' : 'Submit quiz'}
+                            </button>
                           </div>
                         </div>
                       </div>
                     ) : (
                       <p className="helper">Start the quiz to begin the timer and question navigation.</p>
                     )}
+
+                    {studentSubmissionResult ? (
+                      <div className="result-panel">
+                        <div className="table-heading">
+                          <h3>Result summary</h3>
+                          <span className={studentSubmissionResult.passed ? 'status-pill active' : 'status-pill inactive'}>
+                            {studentSubmissionResult.passed ? 'Passed' : 'Failed'}
+                          </span>
+                        </div>
+                        <div className="detail-grid">
+                          <div>
+                            <span>Score</span>
+                            <strong>
+                              {studentSubmissionResult.score}/{studentSubmissionResult.total_marks}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Percentage</span>
+                            <strong>{studentSubmissionResult.percentage}%</strong>
+                          </div>
+                          <div>
+                            <span>Correct</span>
+                            <strong>{studentSubmissionResult.correct_count}</strong>
+                          </div>
+                          <div>
+                            <span>Incorrect</span>
+                            <strong>{studentSubmissionResult.incorrect_count}</strong>
+                          </div>
+                          <div>
+                            <span>Unanswered</span>
+                            <strong>{studentSubmissionResult.unanswered_count}</strong>
+                          </div>
+                          <div>
+                            <span>Time taken</span>
+                            <strong>{studentSubmissionResult.time_taken_seconds}s</strong>
+                          </div>
+                        </div>
+
+                        <div className="result-review">
+                          {studentSubmissionResult.results.map((item, index) => (
+                            <article key={item.question_id} className="review-card">
+                              <div className="table-heading">
+                                <h4>
+                                  Question {index + 1}
+                                </h4>
+                                <span className={item.is_correct ? 'status-pill active' : 'status-pill inactive'}>
+                                  {item.is_correct ? 'Correct' : 'Incorrect'}
+                                </span>
+                              </div>
+                              <p>{item.question_text}</p>
+                              <div className="review-lines">
+                                <div>
+                                  <span>Your answer</span>
+                                  <strong>{item.selected_option_text || 'Not answered'}</strong>
+                                </div>
+                                <div>
+                                  <span>Correct answer</span>
+                                  <strong>{item.correct_option_text || '-'}</strong>
+                                </div>
+                                <div>
+                                  <span>Marks</span>
+                                  <strong>
+                                    {item.marks_awarded}/{item.marks}
+                                  </strong>
+                                </div>
+                              </div>
+                              {item.explanation ? <p className="table-note">{item.explanation}</p> : null}
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </section>
                 ) : null}
               </div>
