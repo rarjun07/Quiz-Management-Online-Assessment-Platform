@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
@@ -20,11 +21,14 @@ from app.schemas.student_quiz import (
     StudentDashboardAttemptPoint,
     StudentDashboardCategoryPerformance,
     StudentDashboardResponse,
+    StudentCategoryLeaderboardItem,
     StudentAttemptQuestionResult,
     StudentAttemptHistoryItem,
     StudentAttemptHistoryResponse,
     StudentAttemptSubmitRequest,
     StudentAttemptSubmitResponse,
+    StudentLeaderboardItem,
+    StudentLeaderboardResponse,
     StudentQuizDetail,
     StudentQuizListItem,
     StudentQuizListResponse,
@@ -181,6 +185,122 @@ def student_dashboard(
         recent_attempts=recent_attempts,
         performance_points=performance_points,
         category_performance=category_performance,
+    )
+
+
+@router.get("/leaderboard", response_model=StudentLeaderboardResponse)
+def student_leaderboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student),
+    category: str | None = Query(default=None, min_length=1, max_length=100),
+) -> StudentLeaderboardResponse:
+    attempt_rows = (
+        db.query(Attempt, AttemptResult, Quiz, User)
+        .join(AttemptResult, AttemptResult.attempt_id == Attempt.id)
+        .join(Quiz, Quiz.id == Attempt.quiz_id)
+        .join(User, User.id == Attempt.user_id)
+        .order_by(AttemptResult.submitted_at.desc())
+        .all()
+    )
+
+    categories = sorted({quiz.category for _, _, quiz, _ in attempt_rows}, key=str.lower)
+    selected_category = category if category and category in categories else (categories[0] if categories else None)
+
+    overall_bucket: dict[int, dict[str, object]] = {}
+    category_bucket: dict[int, dict[str, object]] = {}
+    for attempt, result, quiz, user in attempt_rows:
+        user_bucket = overall_bucket.setdefault(
+            user.id,
+            {
+                "user_name": user.name,
+                "user_email": user.email,
+                "attempts": 0,
+                "total_percentage": 0.0,
+                "best_score": 0.0,
+                "passed_attempts": 0,
+                "total_time_spent_seconds": 0,
+            },
+        )
+        user_bucket["attempts"] = int(user_bucket["attempts"]) + 1
+        user_bucket["total_percentage"] = float(user_bucket["total_percentage"]) + float(result.percentage)
+        user_bucket["best_score"] = max(float(user_bucket["best_score"]), float(result.percentage))
+        user_bucket["passed_attempts"] = int(user_bucket["passed_attempts"]) + (1 if result.passed else 0)
+        user_bucket["total_time_spent_seconds"] = int(user_bucket["total_time_spent_seconds"]) + int(
+            result.time_taken_seconds
+        )
+
+        if selected_category and quiz.category == selected_category:
+            cat_bucket = category_bucket.setdefault(
+                user.id,
+                {
+                    "user_name": user.name,
+                    "user_email": user.email,
+                    "attempts": 0,
+                    "total_percentage": 0.0,
+                    "best_score": 0.0,
+                    "passed_attempts": 0,
+                    "total_time_spent_seconds": 0,
+                },
+            )
+            cat_bucket["attempts"] = int(cat_bucket["attempts"]) + 1
+            cat_bucket["total_percentage"] = float(cat_bucket["total_percentage"]) + float(result.percentage)
+            cat_bucket["best_score"] = max(float(cat_bucket["best_score"]), float(result.percentage))
+            cat_bucket["passed_attempts"] = int(cat_bucket["passed_attempts"]) + (1 if result.passed else 0)
+            cat_bucket["total_time_spent_seconds"] = int(cat_bucket["total_time_spent_seconds"]) + int(
+                result.time_taken_seconds
+            )
+
+    def rank_rows(rows: list[tuple[int, dict[str, object]]]) -> list[tuple[int, dict[str, object]]]:
+        return sorted(
+            rows,
+            key=lambda item: (
+                -float(item[1]["total_percentage"]) / max(1, int(item[1]["attempts"])),
+                -int(item[1]["passed_attempts"]),
+                -float(item[1]["best_score"]),
+                int(item[1]["total_time_spent_seconds"]),
+                str(item[1]["user_name"]).lower(),
+            ),
+        )
+
+    overall_ranked = rank_rows(list(overall_bucket.items()))
+    category_ranked = rank_rows(list(category_bucket.items()))
+
+    overall = [
+        StudentLeaderboardItem(
+            rank=index,
+            user_id=user_id,
+            user_name=str(values["user_name"]),
+            user_email=str(values["user_email"]),
+            attempts=int(values["attempts"]),
+            average_score=round(float(values["total_percentage"]) / int(values["attempts"]), 2),
+            best_score=round(float(values["best_score"]), 2),
+            passed_attempts=int(values["passed_attempts"]),
+            total_time_spent_seconds=int(values["total_time_spent_seconds"]),
+        )
+        for index, (user_id, values) in enumerate(overall_ranked, start=1)
+    ]
+
+    category_leaderboard = [
+        StudentCategoryLeaderboardItem(
+            rank=index,
+            user_id=user_id,
+            user_name=str(values["user_name"]),
+            user_email=str(values["user_email"]),
+            category=selected_category or "",
+            attempts=int(values["attempts"]),
+            average_score=round(float(values["total_percentage"]) / int(values["attempts"]), 2),
+            best_score=round(float(values["best_score"]), 2),
+            passed_attempts=int(values["passed_attempts"]),
+            total_time_spent_seconds=int(values["total_time_spent_seconds"]),
+        )
+        for index, (user_id, values) in enumerate(category_ranked, start=1)
+    ]
+
+    return StudentLeaderboardResponse(
+        selected_category=selected_category,
+        categories=categories,
+        overall=overall,
+        category_leaderboard=category_leaderboard,
     )
 
 

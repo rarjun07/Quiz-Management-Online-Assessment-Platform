@@ -546,6 +546,35 @@ th {
   gap: 20px;
 }
 
+.leaderboard-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.leaderboard-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.leaderboard-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.leaderboard-card {
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.leaderboard-card table {
+  min-width: 560px;
+}
+
 .student-stats {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
@@ -641,6 +670,65 @@ th {
 .recent-attempt-meta span {
   color: #64748b;
   font-size: 0.9rem;
+}
+
+.analytics-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.analytics-stats {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.analytics-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.analytics-card,
+.analytics-recent {
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.analytics-list {
+  display: grid;
+  gap: 12px;
+}
+
+.analytics-row {
+  display: grid;
+  gap: 10px;
+}
+
+.analytics-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.analytics-meta span,
+.analytics-values span {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.analytics-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.analytics-fill.category {
+  background: linear-gradient(90deg, #0f766e, #2dd4bf);
 }
 
 .detail-grid {
@@ -834,6 +922,14 @@ th {
   }
 
   .dashboard-grid-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .leaderboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .analytics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -159,3 +159,35 @@ class StudentDashboardResponse(BaseModel):
     recent_attempts: list[StudentAttemptHistoryItem] = Field(default_factory=list)
     performance_points: list[StudentDashboardAttemptPoint] = Field(default_factory=list)
     category_performance: list[StudentDashboardCategoryPerformance] = Field(default_factory=list)
+
+
+class StudentLeaderboardItem(BaseModel):
+    rank: int
+    user_id: int
+    user_name: str
+    user_email: str
+    attempts: int
+    average_score: float
+    best_score: float
+    passed_attempts: int
+    total_time_spent_seconds: int
+
+
+class StudentCategoryLeaderboardItem(BaseModel):
+    rank: int
+    user_id: int
+    user_name: str
+    user_email: str
+    category: str
+    attempts: int
+    average_score: float
+    best_score: float
+    passed_attempts: int
+    total_time_spent_seconds: int
+
+
+class StudentLeaderboardResponse(BaseModel):
+    selected_category: str | None = None
+    categories: list[str] = Field(default_factory=list)
+    overall: list[StudentLeaderboardItem] = Field(default_factory=list)
+    category_leaderboard: list[StudentCategoryLeaderboardItem] = Field(default_factory=list)

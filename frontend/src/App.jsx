@@ -149,6 +149,8 @@ export default function App() {
   const [selectedAttemptHistoryId, setSelectedAttemptHistoryId] = useState('')
   const [selectedAttemptReview, setSelectedAttemptReview] = useState(null)
   const [studentDashboard, setStudentDashboard] = useState(null)
+  const [studentLeaderboard, setStudentLeaderboard] = useState(null)
+  const [selectedLeaderboardCategory, setSelectedLeaderboardCategory] = useState('')
   const [adminStats, setAdminStats] = useState(null)
   const [adminAnalytics, setAdminAnalytics] = useState(null)
   const [adminUsers, setAdminUsers] = useState([])
@@ -260,6 +262,8 @@ export default function App() {
       setSelectedAttemptHistoryId('')
       setSelectedAttemptReview(null)
       setStudentDashboard(null)
+      setStudentLeaderboard(null)
+      setSelectedLeaderboardCategory('')
       setCurrentQuestionIndex(0)
       setRemainingSeconds(0)
       return
@@ -321,6 +325,38 @@ export default function App() {
       cancelled = true
     }
   }, [token, user?.role])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'STUDENT') {
+      setStudentLeaderboard(null)
+      return
+    }
+
+    let cancelled = false
+    const params = new URLSearchParams()
+    if (selectedLeaderboardCategory) {
+      params.set('category', selectedLeaderboardCategory)
+    }
+
+    request(`/student/leaderboard${params.toString() ? `?${params.toString()}` : ''}`, { token })
+      .then((data) => {
+        if (!cancelled) {
+          setStudentLeaderboard(data)
+          if (!selectedLeaderboardCategory && data.selected_category) {
+            setSelectedLeaderboardCategory(data.selected_category)
+          }
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProbeMessage(err instanceof Error ? err.message : 'Unable to load leaderboard')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role, selectedLeaderboardCategory])
 
   useEffect(() => {
     if (!token || user?.role !== 'STUDENT') {
@@ -1075,6 +1111,11 @@ export default function App() {
       try {
         const dashboard = await request('/student/dashboard', { token })
         setStudentDashboard(dashboard)
+        const leaderboard = await request(
+          `/student/leaderboard${selectedLeaderboardCategory ? `?category=${encodeURIComponent(selectedLeaderboardCategory)}` : ''}`,
+          { token },
+        )
+        setStudentLeaderboard(leaderboard)
       } catch {
         // Best-effort refresh; the submitted result is still shown below.
       }
@@ -1090,6 +1131,7 @@ export default function App() {
   const answeredCount = Object.keys(studentAnswers).length
   const activeAttemptReview = selectedAttemptReview ?? studentSubmissionResult
   const dashboardAverage = studentDashboard?.average_score ?? 0
+  const leaderboardCategoryLabel = studentLeaderboard?.selected_category ?? selectedLeaderboardCategory
 
   return (
     <main className="shell">
@@ -2011,6 +2053,122 @@ export default function App() {
             ) : (
               <section className="table-card">
                 <p className="helper">Loading student dashboard...</p>
+              </section>
+            )}
+
+            {studentLeaderboard ? (
+              <section className="table-card leaderboard-panel">
+                <div className="table-heading">
+                  <h3>Leaderboard</h3>
+                  <span>{studentLeaderboard.overall.length} students ranked</span>
+                </div>
+
+                <div className="leaderboard-tabs">
+                  <button
+                    type="button"
+                    className={!selectedLeaderboardCategory ? 'tab active' : 'tab'}
+                    onClick={() => setSelectedLeaderboardCategory('')}
+                  >
+                    Overall
+                  </button>
+                  {studentLeaderboard.categories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      className={leaderboardCategoryLabel === category ? 'tab active' : 'tab'}
+                      onClick={() => setSelectedLeaderboardCategory(category)}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="leaderboard-grid">
+                  <div className="leaderboard-card">
+                    <div className="table-heading">
+                      <h4>Overall ranking</h4>
+                      <span>All completed attempts</span>
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Rank</th>
+                            <th>Student</th>
+                            <th>Attempts</th>
+                            <th>Average</th>
+                            <th>Best</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {studentLeaderboard.overall.map((item) => (
+                            <tr key={item.user_id}>
+                              <td>#{item.rank}</td>
+                              <td>
+                                <strong>{item.user_name}</strong>
+                                <p className="table-note">{item.user_email}</p>
+                              </td>
+                              <td>{item.attempts}</td>
+                              <td>{item.average_score}%</td>
+                              <td>{item.best_score}%</td>
+                            </tr>
+                          ))}
+                          {studentLeaderboard.overall.length === 0 ? (
+                            <tr>
+                              <td colSpan="5">No leaderboard data yet.</td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="leaderboard-card">
+                    <div className="table-heading">
+                      <h4>
+                        Category ranking
+                        {leaderboardCategoryLabel ? ` - ${leaderboardCategoryLabel}` : ''}
+                      </h4>
+                      <span>{studentLeaderboard.category_leaderboard.length} students</span>
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Rank</th>
+                            <th>Student</th>
+                            <th>Attempts</th>
+                            <th>Average</th>
+                            <th>Passed</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {studentLeaderboard.category_leaderboard.map((item) => (
+                            <tr key={`${item.category}-${item.user_id}`}>
+                              <td>#{item.rank}</td>
+                              <td>
+                                <strong>{item.user_name}</strong>
+                                <p className="table-note">{item.user_email}</p>
+                              </td>
+                              <td>{item.attempts}</td>
+                              <td>{item.average_score}%</td>
+                              <td>{item.passed_attempts}</td>
+                            </tr>
+                          ))}
+                          {studentLeaderboard.category_leaderboard.length === 0 ? (
+                            <tr>
+                              <td colSpan="5">No category ranking available yet.</td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="table-card">
+                <p className="helper">Loading leaderboard...</p>
               </section>
             )}
 
