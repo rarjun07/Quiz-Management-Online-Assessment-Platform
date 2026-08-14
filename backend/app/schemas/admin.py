@@ -10,8 +10,10 @@ class AdminDashboardStats(BaseModel):
     total_users: int
     active_users: int
     inactive_users: int
+    total_quizzes: int = 0
     published_quizzes: int = 0
     draft_quizzes: int = 0
+    unpublished_quizzes: int = 0
     total_quiz_attempts: int = 0
     average_score: float = 0.0
 
@@ -27,4 +29,3 @@ class AdminUserListResponse(BaseModel):
     search: str | None = None
     role: UserRole | None = None
     status: UserStatus | None = None
-

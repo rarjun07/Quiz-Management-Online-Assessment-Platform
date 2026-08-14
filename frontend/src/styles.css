@@ -305,6 +305,47 @@ code {
   background: #fff;
 }
 
+.quiz-form {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quiz-form label {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.quiz-form input,
+.quiz-form select,
+.quiz-form textarea {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  padding: 14px 16px;
+  font: inherit;
+  background: #fff;
+}
+
+.quiz-form textarea {
+  resize: vertical;
+}
+
+.full-row {
+  grid-column: 1 / -1;
+}
+
+.table-note {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.quiz-filters {
+  margin-bottom: 14px;
+}
+
 .table-card {
   border-radius: 22px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
@@ -406,5 +447,9 @@ th {
 
   .stats-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .quiz-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

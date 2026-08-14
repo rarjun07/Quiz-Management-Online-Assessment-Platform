@@ -128,8 +128,23 @@ export default function App() {
   const [probeMessage, setProbeMessage] = useState('')
   const [adminStats, setAdminStats] = useState(null)
   const [adminUsers, setAdminUsers] = useState([])
+  const [quizzes, setQuizzes] = useState([])
   const [adminQuery, setAdminQuery] = useState('')
   const [adminStatusFilter, setAdminStatusFilter] = useState('')
+  const [quizQuery, setQuizQuery] = useState('')
+  const [quizStatusFilter, setQuizStatusFilter] = useState('')
+  const [quizForm, setQuizForm] = useState({
+    title: '',
+    description: '',
+    category: 'Python',
+    difficulty: 'Intermediate',
+    duration: 20,
+    passing_score: 60,
+    max_attempts: 1,
+    status: 'DRAFT',
+    thumbnail_url: '',
+  })
+  const [editingQuizId, setEditingQuizId] = useState(null)
   const [adminMessage, setAdminMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -190,6 +205,7 @@ export default function App() {
     if (!token || user?.role !== 'ADMIN') {
       setAdminStats(null)
       setAdminUsers([])
+      setQuizzes([])
       return
     }
 
@@ -227,6 +243,42 @@ export default function App() {
       cancelled = true
     }
   }, [token, user?.role, adminQuery, adminStatusFilter])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'ADMIN') {
+      setQuizzes([])
+      return
+    }
+
+    let cancelled = false
+
+    async function loadQuizData() {
+      try {
+        const params = new URLSearchParams()
+        if (quizQuery.trim()) {
+          params.set('search', quizQuery.trim())
+        }
+        if (quizStatusFilter) {
+          params.set('status', quizStatusFilter)
+        }
+
+        const data = await request(`/admin/quizzes${params.toString() ? `?${params.toString()}` : ''}`, { token })
+        if (!cancelled) {
+          setQuizzes(data.items ?? [])
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAdminMessage(err instanceof Error ? err.message : 'Unable to load quizzes')
+        }
+      }
+    }
+
+    loadQuizData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role, quizQuery, quizStatusFilter])
 
   const statusText = useMemo(() => {
     if (user) {
@@ -327,6 +379,29 @@ export default function App() {
     }
   }
 
+  async function refreshQuizzes() {
+    if (!token || user?.role !== 'ADMIN') {
+      return
+    }
+
+    try {
+      const params = new URLSearchParams()
+      if (quizQuery.trim()) {
+        params.set('search', quizQuery.trim())
+      }
+      if (quizStatusFilter) {
+        params.set('status', quizStatusFilter)
+      }
+      const data = await request(`/admin/quizzes${params.toString() ? `?${params.toString()}` : ''}`, {
+        token,
+      })
+      setQuizzes(data.items ?? [])
+      setAdminMessage('Quiz list refreshed.')
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to refresh quizzes')
+    }
+  }
+
   async function updateUserStatus(userId, currentIsActive) {
     try {
       await request(`/admin/users/${userId}/status`, {
@@ -351,6 +426,97 @@ export default function App() {
       await refreshAdminData()
     } catch (err) {
       setAdminMessage(err instanceof Error ? err.message : 'Unable to delete user')
+    }
+  }
+
+  function startQuizEdit(quiz) {
+    setEditingQuizId(quiz.id)
+    setQuizForm({
+      title: quiz.title,
+      description: quiz.description ?? '',
+      category: quiz.category,
+      difficulty: quiz.difficulty,
+      duration: quiz.duration,
+      passing_score: quiz.passing_score,
+      max_attempts: quiz.max_attempts,
+      status: quiz.status,
+      thumbnail_url: quiz.thumbnail_url ?? '',
+    })
+  }
+
+  function resetQuizForm() {
+    setEditingQuizId(null)
+    setQuizForm({
+      title: '',
+      description: '',
+      category: 'Python',
+      difficulty: 'Intermediate',
+      duration: 20,
+      passing_score: 60,
+      max_attempts: 1,
+      status: 'DRAFT',
+      thumbnail_url: '',
+    })
+  }
+
+  async function saveQuiz(event) {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const payload = {
+        ...quizForm,
+        duration: Number(quizForm.duration),
+        passing_score: Number(quizForm.passing_score),
+        max_attempts: Number(quizForm.max_attempts),
+        description: quizForm.description || null,
+        thumbnail_url: quizForm.thumbnail_url || null,
+      }
+
+      const path = editingQuizId ? `/admin/quizzes/${editingQuizId}` : '/admin/quizzes'
+      const method = editingQuizId ? 'PUT' : 'POST'
+      await request(path, {
+        method,
+        token,
+        body: JSON.stringify(payload),
+      })
+      setAdminMessage(editingQuizId ? 'Quiz updated.' : 'Quiz created.')
+      resetQuizForm()
+      await refreshQuizzes()
+      await refreshAdminData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save quiz')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function toggleQuizPublish(quiz) {
+    try {
+      await request(`/admin/quizzes/${quiz.id}/publish`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify({
+          is_published: !quiz.is_published,
+          status: quiz.is_published ? 'UNPUBLISHED' : 'PUBLISHED',
+        }),
+      })
+      setAdminMessage(quiz.is_published ? 'Quiz unpublished.' : 'Quiz published.')
+      await refreshQuizzes()
+      await refreshAdminData()
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to update quiz visibility')
+    }
+  }
+
+  async function deleteQuiz(quizId) {
+    try {
+      await request(`/admin/quizzes/${quizId}`, { method: 'DELETE', token })
+      setAdminMessage('Quiz deleted.')
+      await refreshQuizzes()
+      await refreshAdminData()
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to delete quiz')
     }
   }
 
@@ -508,8 +674,10 @@ export default function App() {
                 <StatCard label="Admins" value={adminStats.total_admins} />
                 <StatCard label="Active users" value={adminStats.active_users} />
                 <StatCard label="Inactive users" value={adminStats.inactive_users} />
+                <StatCard label="Total quizzes" value={adminStats.total_quizzes} />
                 <StatCard label="Published quizzes" value={adminStats.published_quizzes} />
                 <StatCard label="Draft quizzes" value={adminStats.draft_quizzes} />
+                <StatCard label="Unpublished quizzes" value={adminStats.unpublished_quizzes} />
                 <StatCard label="Avg score" value={`${adminStats.average_score}%`} />
               </div>
             ) : (
@@ -592,6 +760,194 @@ export default function App() {
                 </table>
               </div>
             </div>
+
+            <section className="table-card">
+              <div className="table-heading">
+                <h3>{editingQuizId ? 'Edit quiz' : 'Create quiz'}</h3>
+                <div className="button-row">
+                  <button className="secondary" type="button" onClick={refreshQuizzes}>
+                    Refresh quizzes
+                  </button>
+                  {editingQuizId ? (
+                    <button className="secondary" type="button" onClick={resetQuizForm}>
+                      Cancel edit
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <form className="quiz-form" onSubmit={saveQuiz}>
+                <label>
+                  Title
+                  <input
+                    value={quizForm.title}
+                    onChange={(event) => setQuizForm({ ...quizForm, title: event.target.value })}
+                    placeholder="JavaScript Fundamentals"
+                  />
+                </label>
+                <label>
+                  Category
+                  <input
+                    value={quizForm.category}
+                    onChange={(event) => setQuizForm({ ...quizForm, category: event.target.value })}
+                    placeholder="JavaScript"
+                  />
+                </label>
+                <label>
+                  Difficulty
+                  <select
+                    value={quizForm.difficulty}
+                    onChange={(event) => setQuizForm({ ...quizForm, difficulty: event.target.value })}
+                  >
+                    <option>Beginner</option>
+                    <option>Intermediate</option>
+                    <option>Advanced</option>
+                  </select>
+                </label>
+                <label>
+                  Duration (minutes)
+                  <input
+                    type="number"
+                    min="1"
+                    value={quizForm.duration}
+                    onChange={(event) => setQuizForm({ ...quizForm, duration: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Passing score
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={quizForm.passing_score}
+                    onChange={(event) => setQuizForm({ ...quizForm, passing_score: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Maximum attempts
+                  <input
+                    type="number"
+                    min="1"
+                    value={quizForm.max_attempts}
+                    onChange={(event) => setQuizForm({ ...quizForm, max_attempts: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Status
+                  <select
+                    value={quizForm.status}
+                    onChange={(event) => setQuizForm({ ...quizForm, status: event.target.value })}
+                  >
+                    <option value="DRAFT">Draft</option>
+                    <option value="PUBLISHED">Published</option>
+                    <option value="UNPUBLISHED">Unpublished</option>
+                  </select>
+                </label>
+                <label className="full-row">
+                  Description
+                  <textarea
+                    rows="4"
+                    value={quizForm.description}
+                    onChange={(event) => setQuizForm({ ...quizForm, description: event.target.value })}
+                    placeholder="Short quiz description"
+                  />
+                </label>
+                <label className="full-row">
+                  Thumbnail URL
+                  <input
+                    value={quizForm.thumbnail_url}
+                    onChange={(event) => setQuizForm({ ...quizForm, thumbnail_url: event.target.value })}
+                    placeholder="https://example.com/image.png"
+                  />
+                </label>
+                <div className="full-row button-row">
+                  <button className="primary" type="submit" disabled={loading}>
+                    {loading ? 'Saving...' : editingQuizId ? 'Update quiz' : 'Create quiz'}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section className="table-card">
+              <div className="table-heading">
+                <h3>Quizzes</h3>
+                <span>{quizzes.length} records</span>
+              </div>
+
+              <div className="filters-panel quiz-filters">
+                <label>
+                  Search quizzes
+                  <input
+                    value={quizQuery}
+                    onChange={(event) => setQuizQuery(event.target.value)}
+                    placeholder="Search by title"
+                  />
+                </label>
+                <label>
+                  Status filter
+                  <select
+                    value={quizStatusFilter}
+                    onChange={(event) => setQuizStatusFilter(event.target.value)}
+                  >
+                    <option value="">All</option>
+                    <option value="DRAFT">Draft</option>
+                    <option value="PUBLISHED">Published</option>
+                    <option value="UNPUBLISHED">Unpublished</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Category</th>
+                      <th>Difficulty</th>
+                      <th>Duration</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quizzes.map((quiz) => (
+                      <tr key={quiz.id}>
+                        <td>
+                          <strong>{quiz.title}</strong>
+                          {quiz.description ? <p className="table-note">{quiz.description}</p> : null}
+                        </td>
+                        <td>{quiz.category}</td>
+                        <td>{quiz.difficulty}</td>
+                        <td>{quiz.duration} min</td>
+                        <td>
+                          <span className={`status-pill ${quiz.is_published ? 'active' : 'inactive'}`}>
+                            {quiz.status}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="table-actions">
+                            <button className="secondary" type="button" onClick={() => startQuizEdit(quiz)}>
+                              Edit
+                            </button>
+                            <button className="secondary" type="button" onClick={() => toggleQuizPublish(quiz)}>
+                              {quiz.is_published ? 'Unpublish' : 'Publish'}
+                            </button>
+                            <button className="secondary danger" type="button" onClick={() => deleteQuiz(quiz.id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {quizzes.length === 0 ? (
+                      <tr>
+                        <td colSpan="6">No quizzes found.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </section>
         ) : null}
       </section>

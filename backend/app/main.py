@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.db.session import Base, engine
+from app.models.quiz import Quiz  # noqa: F401
+from app.models.user import User  # noqa: F401
 
 app = FastAPI(title="Quiz Management API", version="0.1.0")
 

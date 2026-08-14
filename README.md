@@ -45,6 +45,13 @@ Full-stack internship project for an online quiz management and assessment syste
 - Search, status filter, activate/deactivate, and delete actions are exposed
 - Admin route probes and dashboard layout are now part of the UI
 
+## Day 5 progress
+
+- Quiz CRUD endpoints are available for admins
+- Publish and unpublish flow is supported
+- Quiz creation and editing forms are added in the admin UI
+- Quiz listing, filtering, updating, and deletion are wired to the backend
+
 ## Repository layout
 
 - `backend/` - FastAPI application
