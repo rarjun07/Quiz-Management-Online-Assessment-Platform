@@ -129,10 +129,13 @@ export default function App() {
   const [adminStats, setAdminStats] = useState(null)
   const [adminUsers, setAdminUsers] = useState([])
   const [quizzes, setQuizzes] = useState([])
+  const [categories, setCategories] = useState([])
+  const [questions, setQuestions] = useState([])
   const [adminQuery, setAdminQuery] = useState('')
   const [adminStatusFilter, setAdminStatusFilter] = useState('')
   const [quizQuery, setQuizQuery] = useState('')
   const [quizStatusFilter, setQuizStatusFilter] = useState('')
+  const [selectedQuizId, setSelectedQuizId] = useState('')
   const [quizForm, setQuizForm] = useState({
     title: '',
     description: '',
@@ -145,6 +148,26 @@ export default function App() {
     thumbnail_url: '',
   })
   const [editingQuizId, setEditingQuizId] = useState(null)
+  const [categoryQuery, setCategoryQuery] = useState('')
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    description: '',
+  })
+  const [editingCategoryId, setEditingCategoryId] = useState(null)
+  const [questionForm, setQuestionForm] = useState({
+    quiz_id: '',
+    question_text: '',
+    marks: 1,
+    explanation: '',
+    difficulty: 'Intermediate',
+    options: [
+      { option_text: '', is_correct: true },
+      { option_text: '', is_correct: false },
+      { option_text: '', is_correct: false },
+      { option_text: '', is_correct: false },
+    ],
+  })
+  const [editingQuestionId, setEditingQuestionId] = useState(null)
   const [adminMessage, setAdminMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -206,6 +229,8 @@ export default function App() {
       setAdminStats(null)
       setAdminUsers([])
       setQuizzes([])
+      setCategories([])
+      setQuestions([])
       return
     }
 
@@ -279,6 +304,63 @@ export default function App() {
       cancelled = true
     }
   }, [token, user?.role, quizQuery, quizStatusFilter])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'ADMIN') {
+      setCategories([])
+      return
+    }
+
+    let cancelled = false
+    request(`/admin/categories${categoryQuery.trim() ? `?search=${encodeURIComponent(categoryQuery.trim())}` : ''}`, {
+      token,
+    })
+      .then((data) => {
+        if (!cancelled) {
+          setCategories(data.items ?? [])
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setAdminMessage(err instanceof Error ? err.message : 'Unable to load categories')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role, categoryQuery])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'ADMIN' || !selectedQuizId) {
+      setQuestions([])
+      return
+    }
+
+    let cancelled = false
+    request(`/admin/quizzes/${selectedQuizId}/questions`, { token })
+      .then((data) => {
+        if (!cancelled) {
+          setQuestions(data.items ?? [])
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setAdminMessage(err instanceof Error ? err.message : 'Unable to load questions')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role, selectedQuizId])
+
+  useEffect(() => {
+    if (!selectedQuizId && quizzes.length > 0) {
+      setSelectedQuizId(String(quizzes[0].id))
+      setQuestionForm((current) => ({ ...current, quiz_id: String(quizzes[0].id) }))
+    }
+  }, [quizzes, selectedQuizId])
 
   const statusText = useMemo(() => {
     if (user) {
@@ -402,6 +484,40 @@ export default function App() {
     }
   }
 
+  async function refreshCategories() {
+    if (!token || user?.role !== 'ADMIN') {
+      return
+    }
+
+    try {
+      const params = new URLSearchParams()
+      if (categoryQuery.trim()) {
+        params.set('search', categoryQuery.trim())
+      }
+      const data = await request(`/admin/categories${params.toString() ? `?${params.toString()}` : ''}`, {
+        token,
+      })
+      setCategories(data.items ?? [])
+      setAdminMessage('Categories refreshed.')
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to refresh categories')
+    }
+  }
+
+  async function refreshQuestions(quizId = selectedQuizId) {
+    if (!token || user?.role !== 'ADMIN' || !quizId) {
+      return
+    }
+
+    try {
+      const data = await request(`/admin/quizzes/${quizId}/questions`, { token })
+      setQuestions(data.items ?? [])
+      setAdminMessage('Questions refreshed.')
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to refresh questions')
+    }
+  }
+
   async function updateUserStatus(userId, currentIsActive) {
     try {
       await request(`/admin/users/${userId}/status`, {
@@ -517,6 +633,149 @@ export default function App() {
       await refreshAdminData()
     } catch (err) {
       setAdminMessage(err instanceof Error ? err.message : 'Unable to delete quiz')
+    }
+  }
+
+  function startCategoryEdit(category) {
+    setEditingCategoryId(category.id)
+    setCategoryForm({
+      name: category.name,
+      description: category.description ?? '',
+    })
+  }
+
+  function resetCategoryForm() {
+    setEditingCategoryId(null)
+    setCategoryForm({
+      name: '',
+      description: '',
+    })
+  }
+
+  async function saveCategory(event) {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const payload = {
+        name: categoryForm.name,
+        description: categoryForm.description || null,
+      }
+      const path = editingCategoryId ? `/admin/categories/${editingCategoryId}` : '/admin/categories'
+      const method = editingCategoryId ? 'PUT' : 'POST'
+      await request(path, {
+        method,
+        token,
+        body: JSON.stringify(payload),
+      })
+      setAdminMessage(editingCategoryId ? 'Category updated.' : 'Category created.')
+      resetCategoryForm()
+      await refreshCategories()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save category')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function deleteCategory(categoryId) {
+    try {
+      await request(`/admin/categories/${categoryId}`, { method: 'DELETE', token })
+      setAdminMessage('Category deleted.')
+      await refreshCategories()
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to delete category')
+    }
+  }
+
+  function startQuestionEdit(question) {
+    setEditingQuestionId(question.id)
+    setSelectedQuizId(String(question.quiz_id))
+    setQuestionForm({
+      quiz_id: String(question.quiz_id),
+      question_text: question.question_text,
+      marks: question.marks,
+      explanation: question.explanation ?? '',
+      difficulty: question.difficulty,
+      options:
+        question.options?.length > 0
+          ? question.options.map((option) => ({
+              option_text: option.option_text,
+              is_correct: option.is_correct,
+            }))
+          : [
+              { option_text: '', is_correct: true },
+              { option_text: '', is_correct: false },
+              { option_text: '', is_correct: false },
+              { option_text: '', is_correct: false },
+            ],
+    })
+  }
+
+  function resetQuestionForm() {
+    setEditingQuestionId(null)
+    setQuestionForm({
+      quiz_id: selectedQuizId,
+      question_text: '',
+      marks: 1,
+      explanation: '',
+      difficulty: 'Intermediate',
+      options: [
+        { option_text: '', is_correct: true },
+        { option_text: '', is_correct: false },
+        { option_text: '', is_correct: false },
+        { option_text: '', is_correct: false },
+      ],
+    })
+  }
+
+  function updateQuestionOption(index, key, value) {
+    setQuestionForm((current) => ({
+      ...current,
+      options: current.options.map((option, optionIndex) =>
+        optionIndex === index ? { ...option, [key]: value } : option,
+      ),
+    }))
+  }
+
+  async function saveQuestion(event) {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const payload = {
+        quiz_id: Number(questionForm.quiz_id),
+        question_text: questionForm.question_text,
+        marks: Number(questionForm.marks),
+        explanation: questionForm.explanation || null,
+        difficulty: questionForm.difficulty,
+        options: questionForm.options,
+      }
+
+      const path = editingQuestionId ? `/admin/questions/${editingQuestionId}` : `/admin/quizzes/${questionForm.quiz_id}/questions`
+      const method = editingQuestionId ? 'PUT' : 'POST'
+      await request(path, {
+        method,
+        token,
+        body: JSON.stringify(payload),
+      })
+      setAdminMessage(editingQuestionId ? 'Question updated.' : 'Question created.')
+      resetQuestionForm()
+      await refreshQuestions(questionForm.quiz_id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save question')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function deleteQuestion(questionId) {
+    try {
+      await request(`/admin/questions/${questionId}`, { method: 'DELETE', token })
+      setAdminMessage('Question deleted.')
+      await refreshQuestions()
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to delete question')
     }
   }
 
@@ -942,6 +1201,257 @@ export default function App() {
                     {quizzes.length === 0 ? (
                       <tr>
                         <td colSpan="6">No quizzes found.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="table-card">
+              <div className="table-heading">
+                <h3>Categories</h3>
+                <div className="button-row">
+                  <button className="secondary" type="button" onClick={refreshCategories}>
+                    Refresh categories
+                  </button>
+                  {editingCategoryId ? (
+                    <button className="secondary" type="button" onClick={resetCategoryForm}>
+                      Cancel edit
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <form className="quiz-form" onSubmit={saveCategory}>
+                <label className="full-row">
+                  Name
+                  <input
+                    value={categoryForm.name}
+                    onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })}
+                    placeholder="Python"
+                  />
+                </label>
+                <label className="full-row">
+                  Description
+                  <textarea
+                    rows="3"
+                    value={categoryForm.description}
+                    onChange={(event) =>
+                      setCategoryForm({ ...categoryForm, description: event.target.value })
+                    }
+                    placeholder="Category description"
+                  />
+                </label>
+                <div className="full-row button-row">
+                  <button className="primary" type="submit" disabled={loading}>
+                    {loading ? 'Saving...' : editingCategoryId ? 'Update category' : 'Create category'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Description</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categories.map((category) => (
+                      <tr key={category.id}>
+                        <td>{category.name}</td>
+                        <td>{category.description || '-'}</td>
+                        <td>
+                          <div className="table-actions">
+                            <button className="secondary" type="button" onClick={() => startCategoryEdit(category)}>
+                              Edit
+                            </button>
+                            <button className="secondary danger" type="button" onClick={() => deleteCategory(category.id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {categories.length === 0 ? (
+                      <tr>
+                        <td colSpan="3">No categories found.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="table-card">
+              <div className="table-heading">
+                <h3>Questions</h3>
+                <div className="button-row">
+                  <select
+                    value={selectedQuizId}
+                    onChange={(event) => {
+                      setSelectedQuizId(event.target.value)
+                      setQuestionForm((current) => ({ ...current, quiz_id: event.target.value }))
+                      setEditingQuestionId(null)
+                    }}
+                  >
+                    <option value="">Select a quiz</option>
+                    {quizzes.map((quiz) => (
+                      <option key={quiz.id} value={quiz.id}>
+                        {quiz.title}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="secondary" type="button" onClick={() => refreshQuestions(selectedQuizId)}>
+                    Refresh questions
+                  </button>
+                  {editingQuestionId ? (
+                    <button className="secondary" type="button" onClick={resetQuestionForm}>
+                      Cancel edit
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <form className="question-form" onSubmit={saveQuestion}>
+                <label>
+                  Quiz
+                  <select
+                    value={questionForm.quiz_id}
+                    onChange={(event) => setQuestionForm({ ...questionForm, quiz_id: event.target.value })}
+                  >
+                    <option value="">Select a quiz</option>
+                    {quizzes.map((quiz) => (
+                      <option key={quiz.id} value={quiz.id}>
+                        {quiz.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Marks
+                  <input
+                    type="number"
+                    min="1"
+                    value={questionForm.marks}
+                    onChange={(event) => setQuestionForm({ ...questionForm, marks: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Difficulty
+                  <select
+                    value={questionForm.difficulty}
+                    onChange={(event) => setQuestionForm({ ...questionForm, difficulty: event.target.value })}
+                  >
+                    <option>Beginner</option>
+                    <option>Intermediate</option>
+                    <option>Advanced</option>
+                  </select>
+                </label>
+                <label className="full-row">
+                  Question text
+                  <textarea
+                    rows="4"
+                    value={questionForm.question_text}
+                    onChange={(event) =>
+                      setQuestionForm({ ...questionForm, question_text: event.target.value })
+                    }
+                    placeholder="What is Python?"
+                  />
+                </label>
+                <label className="full-row">
+                  Explanation
+                  <textarea
+                    rows="3"
+                    value={questionForm.explanation}
+                    onChange={(event) => setQuestionForm({ ...questionForm, explanation: event.target.value })}
+                    placeholder="Explain the correct answer"
+                  />
+                </label>
+                <div className="full-row options-grid">
+                  {questionForm.options.map((option, index) => (
+                    <div className="option-card" key={`${index}-${option.option_text}`}>
+                      <label>
+                        Option {index + 1}
+                        <input
+                          value={option.option_text}
+                          onChange={(event) => updateQuestionOption(index, 'option_text', event.target.value)}
+                          placeholder={`Option ${index + 1}`}
+                        />
+                      </label>
+                      <label className="option-check">
+                        <input
+                          type="radio"
+                          name="correct-option"
+                          checked={option.is_correct}
+                          onChange={() =>
+                            setQuestionForm((current) => ({
+                              ...current,
+                              options: current.options.map((item, optionIndex) => ({
+                                ...item,
+                                is_correct: optionIndex === index,
+                              })),
+                            }))
+                          }
+                        />
+                        Correct answer
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <div className="full-row button-row">
+                  <button className="primary" type="submit" disabled={loading || !questionForm.quiz_id}>
+                    {loading ? 'Saving...' : editingQuestionId ? 'Update question' : 'Create question'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Question</th>
+                      <th>Marks</th>
+                      <th>Difficulty</th>
+                      <th>Options</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {questions.map((question) => (
+                      <tr key={question.id}>
+                        <td>
+                          <strong>{question.question_text}</strong>
+                          {question.explanation ? <p className="table-note">{question.explanation}</p> : null}
+                        </td>
+                        <td>{question.marks}</td>
+                        <td>{question.difficulty}</td>
+                        <td>
+                          {question.options?.map((option) => (
+                            <div key={option.id} className={option.is_correct ? 'correct-option' : ''}>
+                              {option.option_text}
+                              {option.is_correct ? ' (correct)' : ''}
+                            </div>
+                          ))}
+                        </td>
+                        <td>
+                          <div className="table-actions">
+                            <button className="secondary" type="button" onClick={() => startQuestionEdit(question)}>
+                              Edit
+                            </button>
+                            <button className="secondary danger" type="button" onClick={() => deleteQuestion(question.id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {questions.length === 0 ? (
+                      <tr>
+                        <td colSpan="5">No questions found for the selected quiz.</td>
                       </tr>
                     ) : null}
                   </tbody>

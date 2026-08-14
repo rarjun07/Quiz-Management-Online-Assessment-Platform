@@ -1,16 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import Session
 
 from app.core.constants import UserRole, UserStatus
+from app.crud.category import create_category, delete_category, get_category_by_id, list_categories, update_category
 from app.crud.admin import delete_user, get_user_by_id, list_users, update_user_status
+from app.crud.question import create_question, delete_question, get_question_by_id, list_questions, update_question
 from app.crud.quiz import create_quiz, delete_quiz, get_quiz_by_id, list_quizzes, update_quiz, update_quiz_publish_state
 from app.dependencies import require_admin
 from app.dependencies import get_db
+from app.models.category import Category
 from app.models.quiz import Quiz
+from app.models.question import Question
 from app.models.user import User
+from app.schemas.category import CategoryCreate, CategoryListResponse, CategoryRead, CategoryUpdate
 from app.schemas.admin import AdminDashboardStats, AdminUserListResponse, UserStatusUpdate
 from app.schemas.auth import UserRead
+from app.schemas.question import QuestionCreate, QuestionListResponse, QuestionRead, QuestionUpdate
 from app.schemas.quiz import QuizCreate, QuizListResponse, QuizPublishUpdate, QuizRead, QuizUpdate
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -163,3 +170,121 @@ def remove_quiz(
     if quiz is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
     delete_quiz(db, quiz)
+
+
+@router.get("/categories", response_model=CategoryListResponse)
+def read_categories(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+    search: str | None = Query(default=None, min_length=1, max_length=100),
+) -> CategoryListResponse:
+    categories, total = list_categories(db, search=search)
+    return CategoryListResponse(items=categories, total=total, search=search)
+
+
+@router.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
+def add_category(
+    payload: CategoryCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)
+) -> Category:
+    return create_category(db, payload)
+
+
+@router.get("/categories/{category_id}", response_model=CategoryRead)
+def read_category(
+    category_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)
+) -> Category:
+    category = get_category_by_id(db, category_id)
+    if category is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return category
+
+
+@router.put("/categories/{category_id}", response_model=CategoryRead)
+def edit_category(
+    category_id: int,
+    payload: CategoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> Category:
+    category = get_category_by_id(db, category_id)
+    if category is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return update_category(db, category, payload)
+
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_category(
+    category_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)
+) -> None:
+    category = get_category_by_id(db, category_id)
+    if category is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    delete_category(db, category)
+
+
+@router.get("/quizzes/{quiz_id}/questions", response_model=QuestionListResponse)
+def read_quiz_questions(
+    quiz_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)
+) -> QuestionListResponse:
+    questions, total = list_questions(db, quiz_id=quiz_id)
+    return QuestionListResponse(items=questions, total=total, quiz_id=quiz_id)
+
+
+@router.post("/quizzes/{quiz_id}/questions", response_model=QuestionRead, status_code=status.HTTP_201_CREATED)
+def add_quiz_question(
+    quiz_id: int,
+    payload: QuestionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> Question:
+    if get_quiz_by_id(db, quiz_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    if payload.quiz_id != quiz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question quiz_id must match the path quiz_id",
+        )
+    return create_question(db, payload)
+
+
+@router.get("/questions/{question_id}", response_model=QuestionRead)
+def read_question(
+    question_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)
+) -> Question:
+    question = (
+        db.query(Question)
+        .options(selectinload(Question.options))
+        .filter(Question.id == question_id)
+        .first()
+    )
+    if question is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    return question
+
+
+@router.put("/questions/{question_id}", response_model=QuestionRead)
+def edit_question(
+    question_id: int,
+    payload: QuestionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> Question:
+    question = get_question_by_id(db, question_id)
+    if question is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    if payload.quiz_id != question.quiz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question quiz_id cannot be changed in this update",
+        )
+    return update_question(db, question, payload)
+
+
+@router.delete("/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_question(
+    question_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)
+) -> None:
+    question = get_question_by_id(db, question_id)
+    if question is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    delete_question(db, question)

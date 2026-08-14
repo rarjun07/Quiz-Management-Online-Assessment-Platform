@@ -52,6 +52,13 @@ Full-stack internship project for an online quiz management and assessment syste
 - Quiz creation and editing forms are added in the admin UI
 - Quiz listing, filtering, updating, and deletion are wired to the backend
 
+## Day 6 progress
+
+- Category CRUD endpoints are available for admins
+- Question CRUD endpoints with options are available for admins
+- Admin UI includes category and question management panels
+- Questions can be attached to a selected quiz and edited or deleted
+
 ## Repository layout
 
 - `backend/` - FastAPI application
