@@ -120,6 +120,16 @@ function StatCard({ label, value }) {
   )
 }
 
+function formatDuration(seconds) {
+  const total = Math.max(0, Number(seconds) || 0)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  return `${minutes}m`
+}
+
 export default function App() {
   const [mode, setMode] = useState('register')
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? '')
@@ -138,6 +148,7 @@ export default function App() {
   const [studentAttempts, setStudentAttempts] = useState([])
   const [selectedAttemptHistoryId, setSelectedAttemptHistoryId] = useState('')
   const [selectedAttemptReview, setSelectedAttemptReview] = useState(null)
+  const [studentDashboard, setStudentDashboard] = useState(null)
   const [adminStats, setAdminStats] = useState(null)
   const [adminUsers, setAdminUsers] = useState([])
   const [quizzes, setQuizzes] = useState([])
@@ -247,6 +258,7 @@ export default function App() {
       setStudentAttempts([])
       setSelectedAttemptHistoryId('')
       setSelectedAttemptReview(null)
+      setStudentDashboard(null)
       setCurrentQuestionIndex(0)
       setRemainingSeconds(0)
       return
@@ -303,6 +315,31 @@ export default function App() {
     }
 
     loadStudentAttempts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'STUDENT') {
+      setStudentDashboard(null)
+      return
+    }
+
+    let cancelled = false
+
+    request('/student/dashboard', { token })
+      .then((data) => {
+        if (!cancelled) {
+          setStudentDashboard(data)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProbeMessage(err instanceof Error ? err.message : 'Unable to load student dashboard')
+        }
+      })
 
     return () => {
       cancelled = true
@@ -1029,6 +1066,12 @@ export default function App() {
             : item,
         ),
       )
+      try {
+        const dashboard = await request('/student/dashboard', { token })
+        setStudentDashboard(dashboard)
+      } catch {
+        // Best-effort refresh; the submitted result is still shown below.
+      }
       setNotice(isAutoSubmit ? 'Time is up. The quiz was submitted automatically.' : 'Quiz submitted successfully.')
     } catch (err) {
       setProbeMessage(err instanceof Error ? err.message : 'Unable to submit quiz')
@@ -1040,6 +1083,7 @@ export default function App() {
   const activeStudentQuestion = selectedStudentQuiz?.questions?.[currentQuestionIndex] ?? null
   const answeredCount = Object.keys(studentAnswers).length
   const activeAttemptReview = selectedAttemptReview ?? studentSubmissionResult
+  const dashboardAverage = studentDashboard?.average_score ?? 0
 
   return (
     <main className="shell">
@@ -1727,11 +1771,121 @@ export default function App() {
           <section className="student-board">
             <div className="student-header">
               <div>
-                <p className="eyebrow">Student Quiz Interface</p>
-                <h2>Browse, start, and navigate published quizzes</h2>
+                <p className="eyebrow">Student Dashboard</p>
+                <h2>Track progress, history, and quiz performance</h2>
               </div>
               <span className="timer-pill">Timer {timerLabel}</span>
             </div>
+
+            {studentDashboard ? (
+              <section className="table-card dashboard-panel">
+                <div className="table-heading">
+                  <h3>Performance snapshot</h3>
+                  <span>{studentDashboard.completed_attempts} completed attempts</span>
+                </div>
+                <div className="stats-grid student-stats">
+                  <StatCard label="Total attempts" value={studentDashboard.total_attempts} />
+                  <StatCard label="Completed" value={studentDashboard.completed_attempts} />
+                  <StatCard label="Passed" value={studentDashboard.passed_attempts} />
+                  <StatCard label="Failed" value={studentDashboard.failed_attempts} />
+                  <StatCard label="Average score" value={`${dashboardAverage}%`} />
+                  <StatCard label="Best score" value={`${studentDashboard.best_score}%`} />
+                  <StatCard label="Time spent" value={formatDuration(studentDashboard.total_time_spent_seconds)} />
+                </div>
+
+                <div className="dashboard-grid-two">
+                  <div className="chart-card">
+                    <div className="table-heading">
+                      <h4>Score trend</h4>
+                      <span>Latest submissions</span>
+                    </div>
+                    <div className="score-chart">
+                      {studentDashboard.performance_points.length > 0 ? (
+                        studentDashboard.performance_points.map((point) => (
+                          <div className="score-row" key={point.attempt_id}>
+                            <div className="score-label">
+                              <strong>{point.quiz_title}</strong>
+                              <span>{new Date(point.submitted_at).toLocaleDateString()}</span>
+                            </div>
+                            <div className="score-bar">
+                              <div
+                                className={point.passed ? 'score-fill passed' : 'score-fill failed'}
+                                style={{ width: `${Math.max(6, point.percentage)}%` }}
+                              />
+                            </div>
+                            <strong>{point.percentage}%</strong>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="helper">Complete a quiz to see your performance trend.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="chart-card">
+                    <div className="table-heading">
+                      <h4>Category performance</h4>
+                      <span>{studentDashboard.category_performance.length} categories</span>
+                    </div>
+                    <div className="category-stack">
+                      {studentDashboard.category_performance.length > 0 ? (
+                        studentDashboard.category_performance.map((item) => (
+                          <div className="category-card" key={item.category}>
+                            <div className="category-head">
+                              <strong>{item.category}</strong>
+                              <span>{item.attempts} attempts</span>
+                            </div>
+                            <div className="score-bar">
+                              <div className="score-fill category" style={{ width: `${Math.max(6, item.average_percentage)}%` }} />
+                            </div>
+                            <div className="category-foot">
+                              <span>Average {item.average_percentage}%</span>
+                              <span>Passed {item.passed_attempts}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="helper">Category analytics will appear after your first completed quiz.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <section className="recent-attempts-panel">
+                  <div className="table-heading">
+                    <h4>Recent attempts</h4>
+                    <span>{studentDashboard.recent_attempts.length} shown</span>
+                  </div>
+                  <div className="recent-attempts-list">
+                    {studentDashboard.recent_attempts.length > 0 ? (
+                      studentDashboard.recent_attempts.map((attempt) => (
+                        <article className="recent-attempt-card" key={attempt.attempt_id}>
+                          <div className="recent-attempt-head">
+                            <strong>{attempt.quiz_title}</strong>
+                            <span className={attempt.passed ? 'status-pill active' : 'status-pill inactive'}>
+                              {attempt.passed ? 'Passed' : 'Failed'}
+                            </span>
+                          </div>
+                          <div className="recent-attempt-meta">
+                            <span>{new Date(attempt.submitted_at).toLocaleDateString()}</span>
+                            <span>{attempt.percentage}%</span>
+                            <span>
+                              {attempt.score}/{attempt.total_marks}
+                            </span>
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="helper">Your recent attempts will appear here after you submit a quiz.</p>
+                    )}
+                  </div>
+                </section>
+              </section>
+            ) : (
+              <section className="table-card">
+                <p className="helper">Loading student dashboard...</p>
+              </section>
+            )}
 
             <div className="student-layout">
               <aside className="table-card student-sidebar">

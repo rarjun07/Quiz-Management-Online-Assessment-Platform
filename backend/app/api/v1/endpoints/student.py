@@ -17,6 +17,9 @@ from app.models.quiz import Quiz
 from app.models.user import User
 from app.schemas.auth import UserRead
 from app.schemas.student_quiz import (
+    StudentDashboardAttemptPoint,
+    StudentDashboardCategoryPerformance,
+    StudentDashboardResponse,
     StudentAttemptQuestionResult,
     StudentAttemptHistoryItem,
     StudentAttemptHistoryResponse,
@@ -91,12 +94,94 @@ def read_student_profile(current_user: User = Depends(require_student)) -> User:
 
 
 @router.get("/dashboard")
-def student_dashboard(current_user: User = Depends(require_student)) -> dict[str, str]:
-    return {
-        "message": f"Welcome, Student {current_user.name}",
-        "role": current_user.role.value,
-        "next_step": "Add quiz discovery, attempt history, and performance endpoints",
-    }
+def student_dashboard(
+    db: Session = Depends(get_db), current_user: User = Depends(require_student)
+) -> StudentDashboardResponse:
+    total_attempts = db.query(func.count(Attempt.id)).filter(Attempt.user_id == current_user.id).scalar() or 0
+
+    attempt_rows = (
+        db.query(Attempt, Quiz, AttemptResult)
+        .join(Quiz, Quiz.id == Attempt.quiz_id)
+        .outerjoin(AttemptResult, AttemptResult.attempt_id == Attempt.id)
+        .filter(Attempt.user_id == current_user.id)
+        .order_by(Attempt.started_at.desc())
+        .all()
+    )
+
+    submitted_rows = [row for row in attempt_rows if row[2] is not None]
+    completed_attempts = len(submitted_rows)
+    passed_attempts = sum(1 for _, _, result in submitted_rows if result.passed)
+    failed_attempts = completed_attempts - passed_attempts
+    average_score = round(
+        sum(result.percentage for _, _, result in submitted_rows) / completed_attempts, 2
+    ) if completed_attempts else 0.0
+    best_score = round(max((result.percentage for _, _, result in submitted_rows), default=0.0), 2)
+    total_time_spent_seconds = sum(result.time_taken_seconds for _, _, result in submitted_rows)
+
+    recent_attempts = [
+        StudentAttemptHistoryItem(
+            attempt_id=attempt.id,
+            quiz_id=quiz.id,
+            quiz_title=quiz.title,
+            status=attempt.status,
+            started_at=attempt.started_at,
+            expires_at=attempt.expires_at,
+            submitted_at=result.submitted_at if result else None,
+            score=result.score if result else None,
+            total_marks=result.total_marks if result else None,
+            percentage=result.percentage if result else None,
+            correct_count=result.correct_count if result else None,
+            incorrect_count=result.incorrect_count if result else None,
+            unanswered_count=result.unanswered_count if result else None,
+            passed=result.passed if result else None,
+            time_taken_seconds=result.time_taken_seconds if result else None,
+        )
+        for attempt, quiz, result in attempt_rows[:5]
+    ]
+
+    performance_points = [
+        StudentDashboardAttemptPoint(
+            attempt_id=attempt.id,
+            quiz_title=quiz.title,
+            submitted_at=result.submitted_at,
+            percentage=result.percentage,
+            passed=result.passed,
+        )
+        for attempt, quiz, result in reversed(submitted_rows[:6])
+    ]
+
+    category_bucket: dict[str, dict[str, float | int]] = {}
+    for _, quiz, result in submitted_rows:
+        bucket = category_bucket.setdefault(
+            quiz.category,
+            {"attempts": 0, "total_percentage": 0.0, "passed_attempts": 0},
+        )
+        bucket["attempts"] = int(bucket["attempts"]) + 1
+        bucket["total_percentage"] = float(bucket["total_percentage"]) + float(result.percentage)
+        bucket["passed_attempts"] = int(bucket["passed_attempts"]) + (1 if result.passed else 0)
+
+    category_performance = [
+        StudentDashboardCategoryPerformance(
+            category=category,
+            attempts=int(values["attempts"]),
+            average_percentage=round(float(values["total_percentage"]) / int(values["attempts"]), 2),
+            passed_attempts=int(values["passed_attempts"]),
+        )
+        for category, values in sorted(category_bucket.items(), key=lambda item: item[0].lower())
+    ]
+
+    return StudentDashboardResponse(
+        total_attempts=total_attempts,
+        completed_attempts=completed_attempts,
+        passed_attempts=passed_attempts,
+        failed_attempts=failed_attempts,
+        average_score=average_score,
+        best_score=best_score,
+        total_time_spent_seconds=total_time_spent_seconds,
+        recent_attempts=recent_attempts,
+        performance_points=performance_points,
+        category_performance=category_performance,
+    )
 
 
 @router.get("/quizzes", response_model=StudentQuizListResponse)

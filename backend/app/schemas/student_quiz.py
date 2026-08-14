@@ -131,3 +131,31 @@ class StudentAttemptHistoryItem(BaseModel):
 class StudentAttemptHistoryResponse(BaseModel):
     items: list[StudentAttemptHistoryItem] = Field(default_factory=list)
     total: int
+
+
+class StudentDashboardAttemptPoint(BaseModel):
+    attempt_id: int
+    quiz_title: str
+    submitted_at: datetime
+    percentage: float
+    passed: bool
+
+
+class StudentDashboardCategoryPerformance(BaseModel):
+    category: str
+    attempts: int
+    average_percentage: float
+    passed_attempts: int
+
+
+class StudentDashboardResponse(BaseModel):
+    total_attempts: int
+    completed_attempts: int
+    passed_attempts: int
+    failed_attempts: int
+    average_score: float
+    best_score: float
+    total_time_spent_seconds: int
+    recent_attempts: list[StudentAttemptHistoryItem] = Field(default_factory=list)
+    performance_points: list[StudentDashboardAttemptPoint] = Field(default_factory=list)
+    category_performance: list[StudentDashboardCategoryPerformance] = Field(default_factory=list)
