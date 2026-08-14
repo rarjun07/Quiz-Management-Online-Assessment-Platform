@@ -111,12 +111,26 @@ function ProtectedCard({ title, description, items, tone = 'neutral' }) {
   )
 }
 
+function StatCard({ label, value }) {
+  return (
+    <div className="stat-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
 export default function App() {
   const [mode, setMode] = useState('register')
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? '')
   const [user, setUser] = useState(null)
   const [roleInfo, setRoleInfo] = useState(null)
   const [probeMessage, setProbeMessage] = useState('')
+  const [adminStats, setAdminStats] = useState(null)
+  const [adminUsers, setAdminUsers] = useState([])
+  const [adminQuery, setAdminQuery] = useState('')
+  const [adminStatusFilter, setAdminStatusFilter] = useState('')
+  const [adminMessage, setAdminMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('Day 2: authentication is wired to the backend.')
@@ -171,6 +185,48 @@ export default function App() {
       cancelled = true
     }
   }, [token])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'ADMIN') {
+      setAdminStats(null)
+      setAdminUsers([])
+      return
+    }
+
+    let cancelled = false
+
+    async function loadAdminData() {
+      try {
+        const params = new URLSearchParams()
+        if (adminQuery.trim()) {
+          params.set('search', adminQuery.trim())
+        }
+        if (adminStatusFilter) {
+          params.set('status', adminStatusFilter)
+        }
+
+        const [stats, users] = await Promise.all([
+          request('/admin/dashboard', { token }),
+          request(`/admin/users${params.toString() ? `?${params.toString()}` : ''}`, { token }),
+        ])
+
+        if (!cancelled) {
+          setAdminStats(stats)
+          setAdminUsers(users.items ?? [])
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAdminMessage(err instanceof Error ? err.message : 'Unable to load admin data')
+        }
+      }
+    }
+
+    loadAdminData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role, adminQuery, adminStatusFilter])
 
   const statusText = useMemo(() => {
     if (user) {
@@ -242,6 +298,59 @@ export default function App() {
       setProbeMessage(typeof data === 'string' ? data : data.message || `${label} access allowed`)
     } catch (err) {
       setProbeMessage(err instanceof Error ? err.message : `${label} access denied`)
+    }
+  }
+
+  async function refreshAdminData() {
+    if (!token || user?.role !== 'ADMIN') {
+      return
+    }
+
+    try {
+      const params = new URLSearchParams()
+      if (adminQuery.trim()) {
+        params.set('search', adminQuery.trim())
+      }
+      if (adminStatusFilter) {
+        params.set('status', adminStatusFilter)
+      }
+
+      const [stats, users] = await Promise.all([
+        request('/admin/dashboard', { token }),
+        request(`/admin/users${params.toString() ? `?${params.toString()}` : ''}`, { token }),
+      ])
+      setAdminStats(stats)
+      setAdminUsers(users.items ?? [])
+      setAdminMessage('Admin data refreshed.')
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Refresh failed')
+    }
+  }
+
+  async function updateUserStatus(userId, currentIsActive) {
+    try {
+      await request(`/admin/users/${userId}/status`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify({
+          is_active: !currentIsActive,
+          status: currentIsActive ? 'INACTIVE' : 'ACTIVE',
+        }),
+      })
+      setAdminMessage('User status updated.')
+      await refreshAdminData()
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to update user status')
+    }
+  }
+
+  async function deleteUser(userId) {
+    try {
+      await request(`/admin/users/${userId}`, { method: 'DELETE', token })
+      setAdminMessage('User deleted.')
+      await refreshAdminData()
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : 'Unable to delete user')
     }
   }
 
@@ -378,6 +487,112 @@ export default function App() {
               </section>
             )}
           </>
+        ) : null}
+
+        {user?.role === 'ADMIN' ? (
+          <section className="admin-board">
+            <div className="admin-header">
+              <div>
+                <p className="eyebrow">Admin Dashboard</p>
+                <h2>Platform overview and user management</h2>
+              </div>
+              <button className="secondary" type="button" onClick={refreshAdminData}>
+                Refresh data
+              </button>
+            </div>
+
+            {adminStats ? (
+              <div className="stats-grid">
+                <StatCard label="Total users" value={adminStats.total_users} />
+                <StatCard label="Students" value={adminStats.total_students} />
+                <StatCard label="Admins" value={adminStats.total_admins} />
+                <StatCard label="Active users" value={adminStats.active_users} />
+                <StatCard label="Inactive users" value={adminStats.inactive_users} />
+                <StatCard label="Published quizzes" value={adminStats.published_quizzes} />
+                <StatCard label="Draft quizzes" value={adminStats.draft_quizzes} />
+                <StatCard label="Avg score" value={`${adminStats.average_score}%`} />
+              </div>
+            ) : (
+              <p className="helper">Loading admin statistics...</p>
+            )}
+
+            <div className="filters-panel">
+              <label>
+                Search users
+                <input
+                  value={adminQuery}
+                  onChange={(event) => setAdminQuery(event.target.value)}
+                  placeholder="Search by name or email"
+                />
+              </label>
+              <label>
+                Status filter
+                <select
+                  value={adminStatusFilter}
+                  onChange={(event) => setAdminStatusFilter(event.target.value)}
+                >
+                  <option value="">All</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </label>
+            </div>
+
+            {adminMessage ? <p className="helper">{adminMessage}</p> : null}
+
+            <div className="table-card">
+              <div className="table-heading">
+                <h3>Users</h3>
+                <span>{adminUsers.length} records</span>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminUsers.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.name}</td>
+                        <td>{item.email}</td>
+                        <td>{item.role}</td>
+                        <td>
+                          <span className={`status-pill ${item.is_active ? 'active' : 'inactive'}`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="table-actions">
+                            <button
+                              className="secondary"
+                              type="button"
+                              onClick={() => updateUserStatus(item.id, item.is_active)}
+                            >
+                              {item.is_active ? 'Deactivate' : 'Activate'}
+                            </button>
+                            <button className="secondary danger" type="button" onClick={() => deleteUser(item.id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {adminUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan="5">No users found.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
         ) : null}
       </section>
     </main>

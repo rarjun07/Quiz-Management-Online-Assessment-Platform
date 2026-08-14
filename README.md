@@ -38,6 +38,13 @@ Full-stack internship project for an online quiz management and assessment syste
 - Protected admin and student route probes are visible in the UI
 - Admin-only and student-only dashboard sections are separated in the app
 
+## Day 4 progress
+
+- Admin dashboard statistics are shown in the frontend
+- Admin user management list is connected to the backend
+- Search, status filter, activate/deactivate, and delete actions are exposed
+- Admin route probes and dashboard layout are now part of the UI
+
 ## Repository layout
 
 - `backend/` - FastAPI application
