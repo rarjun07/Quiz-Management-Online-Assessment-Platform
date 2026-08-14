@@ -24,6 +24,13 @@ Full-stack internship project for an online quiz management and assessment syste
 - Git repository setup
 - Environment configuration
 
+## Day 2 progress
+
+- Student registration and login routes are wired
+- JWT auth helpers are in place
+- Current-user and logout endpoints are available
+- Frontend auth screen is connected to the backend API
+
 ## Repository layout
 
 - `backend/` - FastAPI application
