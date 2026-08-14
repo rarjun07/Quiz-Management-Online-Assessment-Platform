@@ -191,6 +191,54 @@ code {
   border-radius: 8px;
 }
 
+.feature-card,
+.action-panel {
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+  padding: 22px 24px;
+}
+
+.feature-card h3,
+.action-panel h3 {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+}
+
+.feature-card p,
+.action-panel p {
+  margin: 0 0 14px;
+  color: #334155;
+}
+
+.feature-card ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  color: #0f172a;
+}
+
+.tone-admin {
+  border-color: rgba(29, 78, 216, 0.25);
+}
+
+.tone-student {
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 24px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 @media (min-width: 900px) {
   .hero {
     grid-template-columns: 1.15fr 0.95fr;
@@ -208,5 +256,10 @@ code {
 
   .session-card {
     grid-column: 1 / 2;
+  }
+
+  .dashboard-grid {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

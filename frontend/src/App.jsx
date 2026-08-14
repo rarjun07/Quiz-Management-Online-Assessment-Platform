@@ -95,10 +95,28 @@ function AuthPanel({ mode, onModeChange, onSubmit, loading, error }) {
   )
 }
 
+function ProtectedCard({ title, description, items, tone = 'neutral' }) {
+  return (
+    <section className={`feature-card tone-${tone}`}>
+      <div className="feature-heading">
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export default function App() {
   const [mode, setMode] = useState('register')
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? '')
   const [user, setUser] = useState(null)
+  const [roleInfo, setRoleInfo] = useState(null)
+  const [probeMessage, setProbeMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('Day 2: authentication is wired to the backend.')
@@ -122,6 +140,30 @@ export default function App() {
         if (!cancelled) {
           setToken('')
           setUser(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token) {
+      setRoleInfo(null)
+      return
+    }
+
+    let cancelled = false
+    request('/auth/role', { token })
+      .then((data) => {
+        if (!cancelled) {
+          setRoleInfo(data)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRoleInfo(null)
         }
       })
 
@@ -193,15 +235,25 @@ export default function App() {
     }
   }
 
+  async function probeAccess(path, label) {
+    setProbeMessage(`Checking ${label} access...`)
+    try {
+      const data = await request(path, { token })
+      setProbeMessage(typeof data === 'string' ? data : data.message || `${label} access allowed`)
+    } catch (err) {
+      setProbeMessage(err instanceof Error ? err.message : `${label} access denied`)
+    }
+  }
+
   return (
     <main className="shell">
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Quiz Management Platform</p>
-          <h1>Authentication foundation for Day 2</h1>
+          <h1>Role-based access for Day 3</h1>
           <p className="lede">
-            FastAPI handles registration, login, logout, and current-user checks. React now talks to
-            those endpoints so you can verify the auth flow before moving to roles.
+            FastAPI already protects admin and student routes. The UI now reads the active role and
+            shows the correct dashboard so you can verify authorization before quiz work begins.
           </p>
 
           <div className="status-row">
@@ -231,6 +283,11 @@ export default function App() {
               <p>
                 Status: <code>{user.status}</code>
               </p>
+              {roleInfo ? (
+                <p>
+                  Role endpoint: <code>{roleInfo.role}</code> / <code>{roleInfo.status}</code>
+                </p>
+              ) : null}
               <button className="secondary" type="button" onClick={handleLogout}>
                 Logout
               </button>
@@ -239,6 +296,89 @@ export default function App() {
             <p>Register or log in to verify the backend auth flow.</p>
           )}
         </section>
+
+        {user ? (
+          <>
+            <ProtectedCard
+              title="Protected routes"
+              description="These checks mirror the Day 3 backend dependencies."
+              tone="admin"
+              items={[
+                'GET /api/v1/auth/me - current authenticated user',
+                'GET /api/v1/admin/me - admin-only profile',
+                'GET /api/v1/student/me - student-only profile',
+              ]}
+            />
+
+            {user.role === 'ADMIN' ? (
+              <section className="dashboard-grid">
+                <ProtectedCard
+                  title="Admin dashboard"
+                  description="The control panel for managing the platform."
+                  tone="admin"
+                  items={[
+                    'User management',
+                    'Quiz management',
+                    'Category and question control',
+                    'Analytics and leaderboard foundations',
+                  ]}
+                />
+                <div className="action-panel">
+                  <h3>Admin route probes</h3>
+                  <p>Use the buttons to verify admin-only access.</p>
+                  <div className="button-row">
+                    <button className="secondary" type="button" onClick={() => probeAccess('/admin/me', 'Admin profile')}>
+                      Test admin profile
+                    </button>
+                    <button
+                      className="secondary"
+                      type="button"
+                      onClick={() => probeAccess('/admin/dashboard', 'Admin dashboard')}
+                    >
+                      Test admin dashboard
+                    </button>
+                  </div>
+                  {probeMessage ? <p className="helper">{probeMessage}</p> : null}
+                </div>
+              </section>
+            ) : (
+              <section className="dashboard-grid">
+                <ProtectedCard
+                  title="Student dashboard"
+                  description="The student experience for quiz participation."
+                  tone="student"
+                  items={[
+                    'Quiz listing and discovery',
+                    'Attempt history and results',
+                    'Performance tracking',
+                    'Leaderboard visibility',
+                  ]}
+                />
+                <div className="action-panel">
+                  <h3>Student route probes</h3>
+                  <p>Use the buttons to verify student-only access.</p>
+                  <div className="button-row">
+                    <button
+                      className="secondary"
+                      type="button"
+                      onClick={() => probeAccess('/student/me', 'Student profile')}
+                    >
+                      Test student profile
+                    </button>
+                    <button
+                      className="secondary"
+                      type="button"
+                      onClick={() => probeAccess('/student/dashboard', 'Student dashboard')}
+                    >
+                      Test student dashboard
+                    </button>
+                  </div>
+                  {probeMessage ? <p className="helper">{probeMessage}</p> : null}
+                </div>
+              </section>
+            )}
+          </>
+        ) : null}
       </section>
     </main>
   )

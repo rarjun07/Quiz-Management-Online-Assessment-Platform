@@ -31,6 +31,13 @@ Full-stack internship project for an online quiz management and assessment syste
 - Current-user and logout endpoints are available
 - Frontend auth screen is connected to the backend API
 
+## Day 3 progress
+
+- Admin and student role guards are already enforced in the backend
+- Frontend now reflects the signed-in role
+- Protected admin and student route probes are visible in the UI
+- Admin-only and student-only dashboard sections are separated in the app
+
 ## Repository layout
 
 - `backend/` - FastAPI application
