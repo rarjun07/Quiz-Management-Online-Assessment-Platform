@@ -59,6 +59,13 @@ Full-stack internship project for an online quiz management and assessment syste
 - Admin UI includes category and question management panels
 - Questions can be attached to a selected quiz and edited or deleted
 
+## Day 7 progress
+
+- Student quiz listing is available for published quizzes
+- Quiz details load without exposing correct answers
+- Start quiz creates a timed attempt record
+- Student UI includes quiz browsing, question navigation, and answer selection
+
 ## Repository layout
 
 - `backend/` - FastAPI application

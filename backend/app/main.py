@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.db.session import Base, engine
+from app.models.attempt import Attempt  # noqa: F401
 from app.models.category import Category  # noqa: F401
 from app.models.option import Option  # noqa: F401
 from app.models.question import Question  # noqa: F401

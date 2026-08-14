@@ -126,6 +126,13 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [roleInfo, setRoleInfo] = useState(null)
   const [probeMessage, setProbeMessage] = useState('')
+  const [studentQuizzes, setStudentQuizzes] = useState([])
+  const [selectedStudentQuizId, setSelectedStudentQuizId] = useState('')
+  const [selectedStudentQuiz, setSelectedStudentQuiz] = useState(null)
+  const [studentStartInfo, setStudentStartInfo] = useState(null)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [studentAnswers, setStudentAnswers] = useState({})
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [adminStats, setAdminStats] = useState(null)
   const [adminUsers, setAdminUsers] = useState([])
   const [quizzes, setQuizzes] = useState([])
@@ -223,6 +230,90 @@ export default function App() {
       cancelled = true
     }
   }, [token])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'STUDENT') {
+      setStudentQuizzes([])
+      setSelectedStudentQuiz(null)
+      setStudentStartInfo(null)
+      setStudentAnswers({})
+      setCurrentQuestionIndex(0)
+      setRemainingSeconds(0)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadStudentQuizzes() {
+      try {
+        const data = await request('/student/quizzes', { token })
+        if (!cancelled) {
+          setStudentQuizzes(data.items ?? [])
+          if (!selectedStudentQuizId && (data.items ?? []).length > 0) {
+            const firstQuiz = data.items[0]
+            setSelectedStudentQuizId(String(firstQuiz.id))
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setProbeMessage(err instanceof Error ? err.message : 'Unable to load student quizzes')
+        }
+      }
+    }
+
+    loadStudentQuizzes()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role, selectedStudentQuizId])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'STUDENT' || !selectedStudentQuizId) {
+      setSelectedStudentQuiz(null)
+      return
+    }
+
+    let cancelled = false
+
+    request(`/student/quizzes/${selectedStudentQuizId}`, { token })
+      .then((data) => {
+        if (!cancelled) {
+          setSelectedStudentQuiz(data)
+          setCurrentQuestionIndex(0)
+          setStudentAnswers({})
+          setStudentStartInfo(null)
+          setRemainingSeconds(data.duration * 60)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProbeMessage(err instanceof Error ? err.message : 'Unable to load quiz details')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role, selectedStudentQuizId])
+
+  useEffect(() => {
+    if (!studentStartInfo?.expires_at) {
+      return
+    }
+
+    const tick = () => {
+      const remaining = Math.max(
+        0,
+        Math.floor((new Date(studentStartInfo.expires_at).getTime() - Date.now()) / 1000),
+      )
+      setRemainingSeconds(remaining)
+    }
+
+    tick()
+    const interval = window.setInterval(tick, 1000)
+    return () => window.clearInterval(interval)
+  }, [studentStartInfo?.expires_at])
 
   useEffect(() => {
     if (!token || user?.role !== 'ADMIN') {
@@ -368,6 +459,13 @@ export default function App() {
     }
     return 'No active session'
   }, [user])
+
+  const timerLabel = useMemo(() => {
+    const total = Math.max(0, remainingSeconds)
+    const minutes = String(Math.floor(total / 60)).padStart(2, '0')
+    const seconds = String(total % 60).padStart(2, '0')
+    return `${minutes}:${seconds}`
+  }, [remainingSeconds])
 
   async function handleSubmit(payload) {
     setLoading(true)
@@ -778,6 +876,34 @@ export default function App() {
       setAdminMessage(err instanceof Error ? err.message : 'Unable to delete question')
     }
   }
+
+  async function startSelectedQuiz() {
+    if (!selectedStudentQuizId) {
+      return
+    }
+
+    try {
+      const data = await request(`/student/quizzes/${selectedStudentQuizId}/start`, {
+        method: 'POST',
+        token,
+      })
+      setStudentStartInfo(data)
+      setCurrentQuestionIndex(0)
+      setRemainingSeconds(Math.max(0, Math.floor((new Date(data.expires_at).getTime() - Date.now()) / 1000)))
+      setNotice('Quiz started. Timer is running.')
+    } catch (err) {
+      setProbeMessage(err instanceof Error ? err.message : 'Unable to start quiz')
+    }
+  }
+
+  function selectAnswer(questionId, optionId) {
+    setStudentAnswers((current) => ({
+      ...current,
+      [questionId]: optionId,
+    }))
+  }
+
+  const activeStudentQuestion = selectedStudentQuiz?.questions?.[currentQuestionIndex] ?? null
 
   return (
     <main className="shell">
@@ -1458,6 +1584,180 @@ export default function App() {
                 </table>
               </div>
             </section>
+          </section>
+        ) : null}
+
+        {user?.role === 'STUDENT' ? (
+          <section className="student-board">
+            <div className="student-header">
+              <div>
+                <p className="eyebrow">Student Quiz Interface</p>
+                <h2>Browse, start, and navigate published quizzes</h2>
+              </div>
+              <span className="timer-pill">Timer {timerLabel}</span>
+            </div>
+
+            <div className="student-layout">
+              <aside className="table-card student-sidebar">
+                <div className="table-heading">
+                  <h3>Published quizzes</h3>
+                  <span>{studentQuizzes.length} available</span>
+                </div>
+                <div className="student-quiz-list">
+                  {studentQuizzes.map((quiz) => (
+                    <button
+                      key={quiz.id}
+                      type="button"
+                      className={String(quiz.id) === selectedStudentQuizId ? 'student-quiz-item active' : 'student-quiz-item'}
+                      onClick={() => setSelectedStudentQuizId(String(quiz.id))}
+                    >
+                      <strong>{quiz.title}</strong>
+                      <span>{quiz.category}</span>
+                      <span>
+                        {quiz.duration} min - {quiz.questions_count} questions
+                      </span>
+                    </button>
+                  ))}
+                  {studentQuizzes.length === 0 ? <p className="helper">No published quizzes yet.</p> : null}
+                </div>
+              </aside>
+
+              <div className="student-main">
+                <section className="table-card">
+                  <div className="table-heading">
+                    <h3>Quiz details</h3>
+                    <button
+                      className="primary"
+                      type="button"
+                      disabled={!selectedStudentQuiz}
+                      onClick={startSelectedQuiz}
+                    >
+                      Start quiz
+                    </button>
+                  </div>
+
+                  {selectedStudentQuiz ? (
+                    <>
+                      <div className="detail-grid">
+                        <div>
+                          <span>Title</span>
+                          <strong>{selectedStudentQuiz.title}</strong>
+                        </div>
+                        <div>
+                          <span>Category</span>
+                          <strong>{selectedStudentQuiz.category}</strong>
+                        </div>
+                        <div>
+                          <span>Difficulty</span>
+                          <strong>{selectedStudentQuiz.difficulty}</strong>
+                        </div>
+                        <div>
+                          <span>Duration</span>
+                          <strong>{selectedStudentQuiz.duration} minutes</strong>
+                        </div>
+                        <div>
+                          <span>Passing score</span>
+                          <strong>{selectedStudentQuiz.passing_score}%</strong>
+                        </div>
+                        <div>
+                          <span>Questions</span>
+                          <strong>{selectedStudentQuiz.questions_count}</strong>
+                        </div>
+                      </div>
+                      <p className="table-note">{selectedStudentQuiz.description || 'No description available.'}</p>
+                    </>
+                  ) : (
+                    <p className="helper">Select a quiz to inspect its details.</p>
+                  )}
+                </section>
+
+                {studentStartInfo ? (
+                  <section className="table-card">
+                    <div className="table-heading">
+                      <h3>Active attempt</h3>
+                      <span>Attempt #{studentStartInfo.attempt_id}</span>
+                    </div>
+                    <div className="attempt-banner">
+                      <div>
+                        <span>Remaining time</span>
+                        <strong>{timerLabel}</strong>
+                      </div>
+                      <div>
+                        <span>Questions</span>
+                        <strong>{studentStartInfo.question_count}</strong>
+                      </div>
+                    </div>
+
+                    {activeStudentQuestion ? (
+                      <div className="question-shell">
+                        <div className="question-nav">
+                          {selectedStudentQuiz.questions.map((question, index) => (
+                            <button
+                              key={question.id}
+                              type="button"
+                              className={
+                                index === currentQuestionIndex
+                                  ? 'question-dot active'
+                                  : studentAnswers[question.id]
+                                    ? 'question-dot answered'
+                                    : 'question-dot'
+                              }
+                              onClick={() => setCurrentQuestionIndex(index)}
+                            >
+                              {index + 1}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="question-card">
+                          <p className="eyebrow">
+                            Question {currentQuestionIndex + 1} of {selectedStudentQuiz.questions.length}
+                          </p>
+                          <h4>{activeStudentQuestion.question_text}</h4>
+                          <div className="option-list">
+                            {activeStudentQuestion.options.map((option) => (
+                              <label key={option.id} className="option-row">
+                                <input
+                                  type="radio"
+                                  name={`question-${activeStudentQuestion.id}`}
+                                  checked={studentAnswers[activeStudentQuestion.id] === option.id}
+                                  onChange={() => selectAnswer(activeStudentQuestion.id, option.id)}
+                                />
+                                <span>{option.option_text}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="button-row">
+                            <button
+                              className="secondary"
+                              type="button"
+                              disabled={currentQuestionIndex === 0}
+                              onClick={() => setCurrentQuestionIndex((value) => Math.max(0, value - 1))}
+                            >
+                              Previous
+                            </button>
+                            <button
+                              className="secondary"
+                              type="button"
+                              disabled={currentQuestionIndex >= selectedStudentQuiz.questions.length - 1}
+                              onClick={() =>
+                                setCurrentQuestionIndex((value) =>
+                                  Math.min(selectedStudentQuiz.questions.length - 1, value + 1),
+                                )
+                              }
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="helper">Start the quiz to begin the timer and question navigation.</p>
+                    )}
+                  </section>
+                ) : null}
+              </div>
+            </div>
           </section>
         ) : null}
       </section>
