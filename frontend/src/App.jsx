@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 
-const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api/v1'
+const apiBase = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1'
 const tokenKey = 'quiz_platform_token'
 
 async function request(path, options = {}) {
+  const headers = new Headers(options.headers ?? {})
+  if (options.token) {
+    headers.set('Authorization', `Bearer ${options.token}`)
+  }
+  if (options.body && !headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
+
   const response = await fetch(`${apiBase}${path}`, {
-    headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-      ...options.headers,
-    },
     ...options,
+    headers,
   })
 
   const data = await response.json().catch(() => null)
