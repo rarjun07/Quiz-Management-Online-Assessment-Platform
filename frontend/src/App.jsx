@@ -28,6 +28,11 @@ function AuthPanel({ mode, onModeChange, onSubmit, loading, error }) {
   const [name, setName] = useState('Arjun Student')
   const [email, setEmail] = useState('student@example.com')
   const [password, setPassword] = useState('password123')
+  const panelTitle = mode === 'login' ? 'Welcome back' : 'Create your account'
+  const panelSubtitle =
+    mode === 'login'
+      ? 'Sign in with your email and password to continue.'
+      : 'Start a new student account and join the platform.'
 
   return (
     <form
@@ -42,6 +47,12 @@ function AuthPanel({ mode, onModeChange, onSubmit, loading, error }) {
         })
       }}
     >
+      <div className="auth-panel-head">
+        <p className="auth-badge">Account access</p>
+        <h2>{panelTitle}</h2>
+        <p>{panelSubtitle}</p>
+      </div>
+
       <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
         <button
           type="button"
@@ -1141,6 +1152,20 @@ export default function App() {
     { label: 'Assessment', value: 'Timed quizzes and scoring' },
     { label: 'Insights', value: 'Analytics + leaderboard' },
   ]
+  const authHighlights = [
+    {
+      label: 'Fast setup',
+      value: 'Use the same login contract for student and admin access.',
+    },
+    {
+      label: 'Role routing',
+      value: 'The app opens the correct workspace after sign in.',
+    },
+    {
+      label: 'Audit ready',
+      value: 'Routes, results, and activity stay visible in one place.',
+    },
+  ]
   const isLandingPage = pathname === '/'
   const isAuthPage = pathname === '/auth'
   const isAdminPage = pathname === '/admin'
@@ -1300,6 +1325,15 @@ export default function App() {
             <div className="status-row">
               <span className="pill">{statusText}</span>
               <span className="notice">{notice}</span>
+            </div>
+
+            <div className="auth-feature-grid">
+              {authHighlights.map((item) => (
+                <article className="auth-feature-card" key={item.label}>
+                  <strong>{item.label}</strong>
+                  <p>{item.value}</p>
+                </article>
+              ))}
             </div>
           </div>
 
