@@ -661,6 +661,23 @@ body.theme-frozen-teal .marketing-card {
   gap: 8px;
 }
 
+.auth-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(143, 193, 173, 0.7);
+  background: rgba(241, 247, 244, 0.96);
+  color: #1c6a61;
+  box-shadow: 0 14px 28px rgba(9, 44, 40, 0.08);
+}
+
+.auth-avatar span {
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
 .auth-panel-head h2 {
   margin: 0;
   font-size: 1.8rem;
@@ -794,6 +811,17 @@ body.theme-frozen-teal .tab.active {
   outline: none;
   border-color: rgba(29, 78, 216, 0.6);
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.14);
+}
+
+.auth-forgot-password {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #35544f;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .primary,

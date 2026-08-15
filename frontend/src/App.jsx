@@ -48,6 +48,11 @@ function AuthPanel({ mode, onModeChange, onSubmit, loading, error, showModeToggl
       }}
     >
       <div className="auth-panel-head">
+        {mode === 'login' ? (
+          <div className="auth-avatar" aria-hidden="true">
+            <span>◉</span>
+          </div>
+        ) : null}
         <p className="auth-badge">Account access</p>
         <h2>{panelTitle}</h2>
         <p>{panelSubtitle}</p>
@@ -98,6 +103,18 @@ function AuthPanel({ mode, onModeChange, onSubmit, loading, error, showModeToggl
           placeholder="Enter a password"
         />
       </label>
+
+      {mode === 'login' ? (
+        <button
+          type="button"
+          className="auth-forgot-password"
+          onClick={() => {
+            setPassword('')
+          }}
+        >
+          Forgot password?
+        </button>
+      ) : null}
 
       {error ? <p className="error">{error}</p> : null}
 
