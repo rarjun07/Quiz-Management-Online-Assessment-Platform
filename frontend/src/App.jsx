@@ -1133,58 +1133,97 @@ export default function App() {
   const activeAttemptReview = selectedAttemptReview ?? studentSubmissionResult
   const dashboardAverage = studentDashboard?.average_score ?? 0
   const leaderboardCategoryLabel = studentLeaderboard?.selected_category ?? selectedLeaderboardCategory
+  const marketingStats = [
+    { label: 'Authentication', value: 'JWT + role guards' },
+    { label: 'Operations', value: 'Admin + student workspaces' },
+    { label: 'Assessment', value: 'Timed quizzes and scoring' },
+    { label: 'Insights', value: 'Analytics + leaderboard' },
+  ]
 
   return (
     <main className="shell">
+      <header className="topbar">
+        <div className="brand-lockup">
+          <div className="brand-mark">Q</div>
+          <div>
+            <p className="brand-name">QuizFlow</p>
+            <p className="brand-subtitle">Assessment operations workspace</p>
+          </div>
+        </div>
+
+        <nav className="topbar-nav" aria-label="Primary">
+          <span>Launch</span>
+          <span>Dashboard</span>
+          <span>Reports</span>
+          <span>Security</span>
+        </nav>
+
+        <div className="topbar-status">
+          <span className="status-dot" />
+          <span>{user ? statusText : 'Preview mode'}</span>
+        </div>
+      </header>
+
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Quiz Management Platform</p>
-          <h1>Role-based access for Day 3</h1>
+          <h1>Build, run, and measure assessments in one workspace.</h1>
           <p className="lede">
-            FastAPI already protects admin and student routes. The UI now reads the active role and
-            shows the correct dashboard so you can verify authorization before quiz work begins.
+            A polished FastAPI and React product for admin control, student quiz delivery, timed
+            attempts, performance analytics, and leaderboard tracking.
           </p>
 
           <div className="status-row">
             <span className="pill">{statusText}</span>
             <span className="notice">{notice}</span>
           </div>
+
+          <div className="marketing-grid">
+            {marketingStats.map((item) => (
+              <article className="marketing-card" key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </article>
+            ))}
+          </div>
         </div>
 
-        <AuthPanel
-          mode={mode}
-          onModeChange={setMode}
-          onSubmit={handleSubmit}
-          loading={loading}
-          error={error}
-        />
+        <div className="hero-aside">
+          <AuthPanel
+            mode={mode}
+            onModeChange={setMode}
+            onSubmit={handleSubmit}
+            loading={loading}
+            error={error}
+          />
 
-        <section className="session-card">
-          <h2>Current session</h2>
-          {user ? (
-            <>
-              <p>
-                <strong>{user.name}</strong> - {user.email}
-              </p>
-              <p>
-                Role: <code>{user.role}</code>
-              </p>
-              <p>
-                Status: <code>{user.status}</code>
-              </p>
-              {roleInfo ? (
+          <section className="session-card">
+            <h2>Current session</h2>
+            {user ? (
+              <>
                 <p>
-                  Role endpoint: <code>{roleInfo.role}</code> / <code>{roleInfo.status}</code>
+                  <strong>{user.name}</strong> - {user.email}
                 </p>
-              ) : null}
-              <button className="secondary" type="button" onClick={handleLogout}>
-                Logout
-              </button>
-            </>
-          ) : (
-            <p>Register or log in to verify the backend auth flow.</p>
-          )}
-        </section>
+                <p>
+                  Role: <code>{user.role}</code>
+                </p>
+                <p>
+                  Status: <code>{user.status}</code>
+                </p>
+                {roleInfo ? (
+                  <p>
+                    Role endpoint: <code>{roleInfo.role}</code> / <code>{roleInfo.status}</code>
+                  </p>
+                ) : null}
+                <button className="secondary" type="button" onClick={handleLogout}>
+                  Logout
+                </button>
+              </>
+            ) : (
+              <p>Register or log in to verify the backend auth flow.</p>
+            )}
+          </section>
+        </div>
 
         {user ? (
           <>
