@@ -50,7 +50,7 @@ function AuthPanel({ mode, onModeChange, onSubmit, loading, error, showModeToggl
       <div className="auth-panel-head">
         {mode === 'login' ? (
           <div className="auth-avatar" aria-hidden="true">
-            <span>◉</span>
+            <UserOutlineIcon />
           </div>
         ) : null}
         <p className="auth-badge">Account access</p>
@@ -162,6 +162,21 @@ function formatDuration(seconds) {
     return `${hours}h ${minutes}m`
   }
   return `${minutes}m`
+}
+
+function UserOutlineIcon({ className = '' }) {
+  return (
+    <svg
+      className={`user-outline-icon ${className}`.trim()}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M5.5 19c1.4-3.2 4.1-5 6.5-5s5.1 1.8 6.5 5" />
+    </svg>
+  )
 }
 
 export default function App() {
@@ -1353,7 +1368,7 @@ export default function App() {
               aria-expanded={profileMenuOpen}
               onClick={() => setProfileMenuOpen((current) => !current)}
             >
-              <span className="profile-icon">◉</span>
+              <UserOutlineIcon className="profile-icon" />
             </button>
 
             {profileMenuOpen ? (

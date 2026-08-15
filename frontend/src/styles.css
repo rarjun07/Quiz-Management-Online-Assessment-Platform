@@ -301,6 +301,15 @@ body.theme-frozen-teal .profile-button {
   line-height: 1;
 }
 
+.user-outline-icon {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .profile-menu-anchor {
   position: relative;
   display: flex;
@@ -676,6 +685,16 @@ body.theme-frozen-teal .marketing-card {
 .auth-avatar span {
   font-size: 1.65rem;
   line-height: 1;
+}
+
+.auth-avatar .user-outline-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.profile-button .user-outline-icon {
+  width: 22px;
+  height: 22px;
 }
 
 .auth-panel-head h2 {
