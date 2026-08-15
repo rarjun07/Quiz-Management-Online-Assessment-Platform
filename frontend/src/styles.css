@@ -278,12 +278,22 @@ body.theme-frozen-teal .topbar-status {
 }
 
 .topbar-search {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
   min-width: 280px;
   flex: 1 1 280px;
   max-width: 360px;
+}
+
+.topbar-search-icon {
+  position: absolute;
+  left: 16px;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .topbar-search-input {
@@ -292,7 +302,7 @@ body.theme-frozen-teal .topbar-status {
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(241, 245, 249, 0.84);
-  padding: 11px 16px;
+  padding: 11px 16px 11px 46px;
   color: var(--text);
   font-weight: 700;
 }
@@ -312,7 +322,6 @@ body.theme-frozen-teal .topbar-search-input {
   border-color: rgba(19, 67, 61, 0.12);
 }
 
-.topbar-search-button,
 .topbar-bell-button {
   width: 48px;
   height: 48px;
@@ -326,7 +335,6 @@ body.theme-frozen-teal .topbar-search-input {
   flex: none;
 }
 
-body.theme-frozen-teal .topbar-search-button,
 body.theme-frozen-teal .topbar-bell-button {
   background: rgba(240, 247, 243, 0.92);
   color: #1c6a61;

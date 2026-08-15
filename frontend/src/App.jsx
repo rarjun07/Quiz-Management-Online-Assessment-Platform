@@ -1439,15 +1439,10 @@ export default function App() {
 
           {user ? (
             <div className="topbar-search">
-              <button type="button" className="topbar-search-button" aria-label="Search">
+              <span className="topbar-search-icon" aria-hidden="true">
                 <SearchIcon />
-              </button>
-              <input
-                type="search"
-                className="topbar-search-input"
-                placeholder="Search"
-                aria-label="Search"
-              />
+              </span>
+              <input type="search" className="topbar-search-input" placeholder="Search" aria-label="Search" />
             </div>
           ) : null}
 
