@@ -1258,6 +1258,13 @@ export default function App() {
     document.title = titleMap[pathname] ?? 'QuizFlow'
   }, [pathname])
 
+  useEffect(() => {
+    document.body.classList.toggle('theme-frozen-teal', isLandingPage)
+    return () => {
+      document.body.classList.remove('theme-frozen-teal')
+    }
+  }, [isLandingPage])
+
   function navigate(to) {
     if (!to || to === pathname) {
       return
