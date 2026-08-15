@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const apiBase = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1'
 const tokenKey = 'quiz_platform_token'
@@ -153,6 +153,7 @@ export default function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname || '/')
   const [user, setUser] = useState(null)
   const [roleInfo, setRoleInfo] = useState(null)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [probeMessage, setProbeMessage] = useState('')
   const [studentQuizzes, setStudentQuizzes] = useState([])
   const [selectedStudentQuizId, setSelectedStudentQuizId] = useState('')
@@ -216,6 +217,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('Day 2: authentication is wired to the backend.')
+  const profileMenuRef = useRef(null)
 
   useEffect(() => {
     if (!token) {
@@ -1179,12 +1181,49 @@ export default function App() {
   const isStudentPage = pathname === '/student'
   const isDashboardPage = pathname === '/dashboard'
   const isWorkspacePage = isAdminPage || isStudentPage || isDashboardPage
+  const dashboardPath = user?.role === 'ADMIN' ? '/admin' : '/student'
+  const workspaceTitle = user?.role === 'ADMIN' ? 'Admin control center' : 'Student learning center'
+  const workspaceSubtitle = roleInfo
+    ? `${roleInfo.role} · ${roleInfo.status}`
+    : user
+      ? `${user.role} · ${user.status}`
+      : 'Guest access'
 
   useEffect(() => {
     const onPopState = () => setPathname(window.location.pathname || '/')
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
+
+  useEffect(() => {
+    setProfileMenuOpen(false)
+  }, [pathname, user?.id])
+
+  useEffect(() => {
+    if (!profileMenuOpen) {
+      return
+    }
+
+    const onPointerDown = (event) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setProfileMenuOpen(false)
+      }
+    }
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [profileMenuOpen])
 
   useEffect(() => {
     if (!user) {
@@ -1223,8 +1262,17 @@ export default function App() {
     if (!to || to === pathname) {
       return
     }
+    setProfileMenuOpen(false)
     window.history.pushState({}, '', to)
     setPathname(to)
+  }
+
+  function openWorkspaceDetails() {
+    if (!user) {
+      navigate('/login')
+      return
+    }
+    navigate(dashboardPath)
   }
 
   return (
@@ -1239,35 +1287,129 @@ export default function App() {
         </div>
 
         <nav className="topbar-nav" aria-label="Primary">
-          <button
-            type="button"
-            className={isLandingPage ? 'topbar-link active' : 'topbar-link'}
-            onClick={() => navigate('/')}
-          >
-            Home
-          </button>
-          <button
-            type="button"
-            className={isLoginPage ? 'topbar-link active' : 'topbar-link'}
-            onClick={() => navigate('/login')}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            className={isRegisterPage ? 'topbar-link active' : 'topbar-link'}
-            onClick={() => navigate('/register')}
-          >
-            Register
-          </button>
-          <button
-            type="button"
-            className="profile-button"
-            aria-label="Open profile"
-            onClick={() => navigate(user ? (user.role === 'ADMIN' ? '/admin' : '/student') : '/login')}
-          >
-            <span className="profile-icon">◉</span>
-          </button>
+          {!user ? (
+            <>
+              <button
+                type="button"
+                className={isLandingPage ? 'topbar-link active' : 'topbar-link'}
+                onClick={() => navigate('/')}
+              >
+                Home
+              </button>
+              <button
+                type="button"
+                className={isLoginPage ? 'topbar-link active' : 'topbar-link'}
+                onClick={() => navigate('/login')}
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                className={isRegisterPage ? 'topbar-link active' : 'topbar-link'}
+                onClick={() => navigate('/register')}
+              >
+                Register
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="topbar-link active" onClick={openWorkspaceDetails}>
+                Dashboard
+              </button>
+              <span className="topbar-status topbar-role-status">{workspaceSubtitle}</span>
+            </>
+          )}
+
+          <div className="profile-menu-anchor" ref={profileMenuRef}>
+            <button
+              type="button"
+              className="profile-button"
+              aria-label="Open profile menu"
+              aria-haspopup="menu"
+              aria-expanded={profileMenuOpen}
+              onClick={() => setProfileMenuOpen((current) => !current)}
+            >
+              <span className="profile-icon">◉</span>
+            </button>
+
+            {profileMenuOpen ? (
+              <div className="profile-menu" role="menu" aria-label="Profile menu">
+                <div className="profile-menu-header">
+                  <div className="profile-menu-avatar">
+                    <span>{user?.name?.trim()?.charAt(0)?.toUpperCase() ?? 'Q'}</span>
+                  </div>
+                  <div>
+                    <p className="profile-menu-title">{user ? user.name : 'Guest user'}</p>
+                    <p className="profile-menu-subtitle">
+                      {user ? user.email : 'Sign in to unlock your workspace'}
+                    </p>
+                    <div className="profile-menu-badges">
+                      <span>{user ? user.role : 'GUEST'}</span>
+                      <span>{user ? user.status : 'SIGNED OUT'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-menu-body">
+                  <button type="button" className="profile-menu-item" onClick={openWorkspaceDetails}>
+                    <strong>My Account</strong>
+                    <span>{user ? workspaceTitle : 'Open sign in'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-menu-item"
+                    onClick={() => {
+                      setProfileMenuOpen(false)
+                      setNotice('Profile update panel will be added in the next day.')
+                    }}
+                  >
+                    <strong>Update Profile</strong>
+                    <span>Change account details and preferences</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-menu-item"
+                    onClick={() => {
+                      setProfileMenuOpen(false)
+                      setNotice('Settings panel is coming in a later task.')
+                    }}
+                  >
+                    <strong>Settings</strong>
+                    <span>Manage alerts, privacy, and display options</span>
+                  </button>
+                  {roleInfo ? (
+                    <div className="profile-menu-meta">
+                      <span>Workspace</span>
+                      <strong>{workspaceTitle}</strong>
+                      <p>
+                        {user?.name} - {user?.email}
+                      </p>
+                      <p>
+                        Endpoint status: <code>{roleInfo.role}</code> / <code>{roleInfo.status}</code>
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="profile-menu-footer">
+                  {user ? (
+                    <button type="button" className="secondary danger full-width" onClick={handleLogout}>
+                      Logout
+                    </button>
+                  ) : (
+                    <div className="button-row">
+                      <button type="button" className="secondary" onClick={() => navigate('/login')}>
+                        Login
+                      </button>
+                      <button type="button" className="secondary" onClick={() => navigate('/register')}>
+                        Register
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </nav>
       </header>
 
@@ -1380,28 +1522,6 @@ export default function App() {
         <>
           {user ? (
             <>
-              <section className="workspace-status-card">
-                <div>
-                  <p className="eyebrow">Workspace</p>
-                  <h2>{user.role === 'ADMIN' ? 'Admin control center' : 'Student learning center'}</h2>
-                  <p className="helper">
-                    {user.name} - {user.email}
-                  </p>
-                </div>
-                <div className="status-row">
-                  <span className="pill">{statusText}</span>
-                  <span className="notice">{notice}</span>
-                </div>
-                <div className="button-row">
-                  <button className="secondary" type="button" onClick={() => navigate('/login')}>
-                    Account
-                  </button>
-                  <button className="secondary" type="button" onClick={handleLogout}>
-                    Logout
-                  </button>
-                </div>
-              </section>
-
               <ProtectedCard
                 title="Protected routes"
                 description="These checks mirror the Day 3 backend dependencies."

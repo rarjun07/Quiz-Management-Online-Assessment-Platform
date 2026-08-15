@@ -200,6 +200,19 @@ code {
   font-weight: 700;
 }
 
+.topbar-status {
+  font-weight: 800;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.topbar-user-status {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .profile-button {
   width: 48px;
   height: 48px;
@@ -215,6 +228,137 @@ code {
 .profile-icon {
   font-size: 1.05rem;
   line-height: 1;
+}
+
+.profile-menu-anchor {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + 14px);
+  right: 0;
+  width: min(380px, calc(100vw - 32px));
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.18);
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  z-index: 40;
+}
+
+.profile-menu-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.profile-menu-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 70%, #38bdf8 100%);
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 800;
+  box-shadow: 0 14px 28px rgba(29, 78, 216, 0.22);
+  flex: none;
+}
+
+.profile-menu-title {
+  margin: 0;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.profile-menu-subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.profile-menu-badges {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-menu-badges span,
+.profile-menu-meta span {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(219, 234, 254, 0.9);
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.profile-menu-body {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-menu-item {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(248, 250, 252, 0.9);
+  padding: 14px 16px;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+  color: var(--text);
+}
+
+.profile-menu-item strong {
+  font-size: 0.95rem;
+}
+
+.profile-menu-item span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.profile-menu-meta {
+  border-radius: 18px;
+  background: rgba(239, 246, 255, 0.94);
+  border: 1px solid rgba(191, 219, 254, 0.9);
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.profile-menu-meta strong {
+  font-size: 0.98rem;
+}
+
+.profile-menu-meta p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.profile-menu-footer {
+  padding-top: 4px;
+}
+
+.full-width {
+  width: 100%;
 }
 
 .hero,
@@ -289,17 +433,6 @@ code {
 
 .landing-panel {
   align-self: start;
-}
-
-.workspace-status-card {
-  border-radius: var(--radius-lg);
-  padding: 22px;
-  background: rgba(255, 255, 255, 0.84);
-  backdrop-filter: blur(18px);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
-  display: grid;
-  gap: 14px;
 }
 
 .landing-hero {
@@ -1139,6 +1272,12 @@ th {
 
   .topbar-nav {
     justify-content: flex-start;
+  }
+
+  .profile-menu {
+    right: auto;
+    left: 0;
+    width: min(380px, calc(100vw - 32px));
   }
 
   .marketing-grid {
