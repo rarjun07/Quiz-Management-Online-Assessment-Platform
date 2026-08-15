@@ -66,6 +66,48 @@ Full-stack internship project for an online quiz management and assessment syste
 - Start quiz creates a timed attempt record
 - Student UI includes quiz browsing, question navigation, and answer selection
 
+## Day 8 progress
+
+- Quiz submission is supported from the student UI
+- Automatic submission runs when the timer expires
+- Backend calculates score, percentage, and pass/fail status
+- Submission results are returned with question-level scoring
+
+## Day 9 progress
+
+- Result pages show answer review and explanations
+- Correct and incorrect answers are highlighted
+- Attempt history is stored and listed for students
+- Full review views are available for submitted attempts
+
+## Day 10 progress
+
+- Student dashboard shows total attempts and completion stats
+- Average score, best score, and total time spent are displayed
+- Score trend and category performance summaries are available
+- Recent attempts are shown in the student dashboard
+
+## Day 11 progress
+
+- Admin analytics are available from the backend
+- Quiz-level and category-level performance summaries are shown
+- Recent completed attempts are listed for admins
+- Admin dashboard now includes total quiz attempts and average score
+
+## Day 12 progress
+
+- Overall student leaderboard is available
+- Category-based leaderboard is available
+- Ranking uses completed attempt performance
+- Leaderboard tabs are shown in the student UI
+
+## Day 13 progress
+
+- Backend tests cover authentication, permissions, quiz flow, and validation
+- Invalid quiz submissions are rejected
+- Max-attempt enforcement is applied on quiz start
+- Time handling is normalized for reliable scoring and testing
+
 ## Repository layout
 
 - `backend/` - FastAPI application
@@ -101,4 +143,4 @@ npm run dev
 
 ## Next step
 
-Implement authentication, token handling, and protected routes for Day 2.
+Complete Day 14 deployment and documentation tasks.
