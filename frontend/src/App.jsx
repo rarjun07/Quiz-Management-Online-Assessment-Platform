@@ -24,7 +24,7 @@ async function request(path, options = {}) {
   return data
 }
 
-function AuthPanel({ mode, onModeChange, onSubmit, loading, error }) {
+function AuthPanel({ mode, onModeChange, onSubmit, loading, error, showModeToggle = true }) {
   const [name, setName] = useState('Arjun Student')
   const [email, setEmail] = useState('student@example.com')
   const [password, setPassword] = useState('password123')
@@ -53,22 +53,24 @@ function AuthPanel({ mode, onModeChange, onSubmit, loading, error }) {
         <p>{panelSubtitle}</p>
       </div>
 
-      <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
-        <button
-          type="button"
-          className={mode === 'login' ? 'tab active' : 'tab'}
-          onClick={() => onModeChange('login')}
-        >
-          Login
-        </button>
-        <button
-          type="button"
-          className={mode === 'register' ? 'tab active' : 'tab'}
-          onClick={() => onModeChange('register')}
-        >
-          Register
-        </button>
-      </div>
+      {showModeToggle ? (
+        <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
+          <button
+            type="button"
+            className={mode === 'login' ? 'tab active' : 'tab'}
+            onClick={() => onModeChange('login')}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            className={mode === 'register' ? 'tab active' : 'tab'}
+            onClick={() => onModeChange('register')}
+          >
+            Register
+          </button>
+        </div>
+      ) : null}
 
       {mode === 'register' ? (
         <label>
@@ -227,6 +229,9 @@ export default function App() {
         if (!cancelled) {
           setUser(data)
           setNotice('Signed in and ready for protected routes.')
+          if (pathname === '/login' || pathname === '/register' || pathname === '/auth') {
+            navigate(data.role === 'ADMIN' ? '/admin' : '/student')
+          }
         }
       })
       .catch(() => {
@@ -652,6 +657,7 @@ export default function App() {
         })
         setMode('login')
         setNotice('Registration complete. You can now log in.')
+        navigate('/login')
       } else {
         const form = new URLSearchParams()
         form.set('username', payload.email)
@@ -688,7 +694,7 @@ export default function App() {
       setToken('')
       setUser(null)
       setNotice('Session cleared.')
-      navigate('/auth')
+      navigate('/login')
     }
   }
 
@@ -1167,7 +1173,8 @@ export default function App() {
     },
   ]
   const isLandingPage = pathname === '/'
-  const isAuthPage = pathname === '/auth'
+  const isLoginPage = pathname === '/login' || pathname === '/auth'
+  const isRegisterPage = pathname === '/register'
   const isAdminPage = pathname === '/admin'
   const isStudentPage = pathname === '/student'
   const isDashboardPage = pathname === '/dashboard'
@@ -1182,12 +1189,12 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       if (isDashboardPage || isAdminPage || isStudentPage) {
-        navigate('/auth')
+        navigate('/login')
       }
       return
     }
 
-    if (isDashboardPage || isAuthPage) {
+    if (isDashboardPage) {
       navigate(user.role === 'ADMIN' ? '/admin' : '/student')
     }
 
@@ -1198,12 +1205,13 @@ export default function App() {
     if (isStudentPage && user.role !== 'STUDENT') {
       navigate('/admin')
     }
-  }, [isAdminPage, isAuthPage, isDashboardPage, isStudentPage, user])
+  }, [isAdminPage, isDashboardPage, isStudentPage, user])
 
   useEffect(() => {
     const titleMap = {
       '/': 'QuizFlow | Quiz Management',
-      '/auth': 'QuizFlow | Sign In',
+      '/login': 'QuizFlow | Sign In',
+      '/register': 'QuizFlow | Register',
       '/dashboard': 'QuizFlow | Dashboard',
       '/admin': 'QuizFlow | Admin',
       '/student': 'QuizFlow | Student',
@@ -1231,33 +1239,36 @@ export default function App() {
         </div>
 
         <nav className="topbar-nav" aria-label="Primary">
-          <button type="button" className={isLandingPage ? 'topbar-link active' : 'topbar-link'} onClick={() => navigate('/')}>
+          <button
+            type="button"
+            className={isLandingPage ? 'topbar-link active' : 'topbar-link'}
+            onClick={() => navigate('/')}
+          >
             Home
           </button>
-          <button type="button" className={isAuthPage ? 'topbar-link active' : 'topbar-link'} onClick={() => navigate('/auth')}>
-            Auth
+          <button
+            type="button"
+            className={isLoginPage ? 'topbar-link active' : 'topbar-link'}
+            onClick={() => navigate('/login')}
+          >
+            Login
           </button>
           <button
             type="button"
-            className={isWorkspacePage ? 'topbar-link active' : 'topbar-link'}
-            onClick={() => navigate(user ? (user.role === 'ADMIN' ? '/admin' : '/student') : '/dashboard')}
+            className={isRegisterPage ? 'topbar-link active' : 'topbar-link'}
+            onClick={() => navigate('/register')}
           >
-            Workspace
+            Register
           </button>
           <button
             type="button"
-            className="topbar-link"
-            onClick={() => navigate(user?.role === 'ADMIN' ? '/admin' : '/student')}
-            disabled={!user}
+            className="profile-button"
+            aria-label="Open profile"
+            onClick={() => navigate(user ? (user.role === 'ADMIN' ? '/admin' : '/student') : '/login')}
           >
-            Role view
+            <span className="profile-icon">◉</span>
           </button>
         </nav>
-
-        <div className="topbar-status">
-          <span className="status-dot" />
-          <span>{user ? statusText : 'Preview mode'}</span>
-        </div>
       </header>
 
       {isLandingPage ? (
@@ -1273,19 +1284,6 @@ export default function App() {
             <div className="status-row">
               <span className="pill">{statusText}</span>
               <span className="notice">{notice}</span>
-            </div>
-
-            <div className="hero-actions">
-              <button className="primary" type="button" onClick={() => navigate('/auth')}>
-                Open auth
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                onClick={() => navigate(user ? (user.role === 'ADMIN' ? '/admin' : '/student') : '/dashboard')}
-              >
-                Open workspace
-              </button>
             </div>
 
             <div className="marketing-grid">
@@ -1313,14 +1311,15 @@ export default function App() {
         </section>
       ) : null}
 
-      {isAuthPage ? (
+      {isLoginPage || isRegisterPage ? (
         <section className="hero auth-hero">
           <div className="hero-copy">
             <p className="eyebrow">Secure access</p>
-            <h1>Sign in to your admin or student workspace.</h1>
+            {isLoginPage ? <h1>Sign in to your account.</h1> : <h1>Create your account.</h1>}
             <p className="lede">
-              Use the same backend contract as the live platform. Authentication stores a JWT and
-              unlocks the correct role-based page after login.
+              {isLoginPage
+                ? 'Use your email and password to open the correct workspace.'
+                : 'Create a new account to join the quiz platform and continue to your workspace.'}
             </p>
             <div className="status-row">
               <span className="pill">{statusText}</span>
@@ -1339,11 +1338,12 @@ export default function App() {
 
           <div className="hero-aside">
             <AuthPanel
-              mode={mode}
+              mode={isRegisterPage ? 'register' : 'login'}
               onModeChange={setMode}
               onSubmit={handleSubmit}
               loading={loading}
               error={error}
+              showModeToggle={false}
             />
 
             <section className="session-card">
@@ -1393,7 +1393,7 @@ export default function App() {
                   <span className="notice">{notice}</span>
                 </div>
                 <div className="button-row">
-                  <button className="secondary" type="button" onClick={() => navigate('/auth')}>
+                  <button className="secondary" type="button" onClick={() => navigate('/login')}>
                     Account
                   </button>
                   <button className="secondary" type="button" onClick={handleLogout}>
@@ -1488,7 +1488,7 @@ export default function App() {
               <p className="helper">
                 The admin and student views are available after authentication.
               </p>
-              <button className="primary" type="button" onClick={() => navigate('/auth')}>
+              <button className="primary" type="button" onClick={() => navigate('/login')}>
                 Go to auth
               </button>
             </section>
