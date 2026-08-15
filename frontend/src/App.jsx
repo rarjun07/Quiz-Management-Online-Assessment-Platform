@@ -179,6 +179,37 @@ function UserOutlineIcon({ className = '' }) {
   )
 }
 
+function SearchIcon({ className = '' }) {
+  return (
+    <svg
+      className={`search-icon ${className}`.trim()}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="11" cy="11" r="5.8" />
+      <path d="M16.2 16.2 20 20" />
+    </svg>
+  )
+}
+
+function BellIcon({ className = '' }) {
+  return (
+    <svg
+      className={`bell-icon ${className}`.trim()}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M7.5 16.5h9" />
+      <path d="M6.2 16.5c.9-.8 1.3-2 1.3-3.2V10a4.5 4.5 0 0 1 9 0v3.3c0 1.2.4 2.4 1.3 3.2" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  )
+}
+
 export default function App() {
   const [mode, setMode] = useState('register')
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? '')
@@ -1393,9 +1424,9 @@ export default function App() {
                 type="button"
                 className={studentActiveTab === 'quiz-details' ? 'topbar-link active' : 'topbar-link'}
                 onClick={() => scrollToStudentSection('quiz-details', 'quiz-details')}
-              >
-                Quiz details
-              </button>
+                >
+                  Quiz details
+                </button>
             </>
           ) : (
             <>
@@ -1405,6 +1436,26 @@ export default function App() {
               <span className="topbar-status topbar-role-status">{workspaceSubtitle}</span>
             </>
           )}
+
+          {user ? (
+            <div className="topbar-search">
+              <button type="button" className="topbar-search-button" aria-label="Search">
+                <SearchIcon />
+              </button>
+              <input
+                type="search"
+                className="topbar-search-input"
+                placeholder="Search"
+                aria-label="Search"
+              />
+            </div>
+          ) : null}
+
+          {user ? (
+            <button type="button" className="topbar-bell-button" aria-label="Notifications">
+              <BellIcon />
+            </button>
+          ) : null}
 
           <div className="profile-menu-anchor" ref={profileMenuRef}>
             <button

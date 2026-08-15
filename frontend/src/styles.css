@@ -277,6 +277,63 @@ body.theme-frozen-teal .topbar-status {
   white-space: nowrap;
 }
 
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 280px;
+  flex: 1 1 280px;
+  max-width: 360px;
+}
+
+.topbar-search-input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(241, 245, 249, 0.84);
+  padding: 11px 16px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.topbar-search-input::placeholder {
+  color: var(--muted-2);
+}
+
+.topbar-search-input:focus {
+  outline: none;
+  border-color: rgba(29, 78, 216, 0.24);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+}
+
+body.theme-frozen-teal .topbar-search-input {
+  background: rgba(240, 247, 243, 0.92);
+  border-color: rgba(19, 67, 61, 0.12);
+}
+
+.topbar-search-button,
+.topbar-bell-button {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(241, 245, 249, 0.84);
+  color: #475569;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  flex: none;
+}
+
+body.theme-frozen-teal .topbar-search-button,
+body.theme-frozen-teal .topbar-bell-button {
+  background: rgba(240, 247, 243, 0.92);
+  color: #1c6a61;
+  border-color: rgba(19, 67, 61, 0.16);
+  box-shadow: 0 10px 20px rgba(9, 44, 40, 0.1);
+}
+
 .profile-button {
   width: 48px;
   height: 48px;
@@ -299,6 +356,16 @@ body.theme-frozen-teal .profile-button {
 .profile-icon {
   font-size: 1.05rem;
   line-height: 1;
+}
+
+.search-icon,
+.bell-icon {
+  width: 21px;
+  height: 21px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .user-outline-icon {
@@ -1525,6 +1592,12 @@ th {
 
   .topbar-nav {
     justify-content: flex-start;
+  }
+
+  .topbar-search {
+    min-width: 100%;
+    width: 100%;
+    max-width: none;
   }
 
   .profile-menu {
