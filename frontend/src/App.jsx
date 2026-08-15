@@ -1259,11 +1259,11 @@ export default function App() {
   }, [pathname])
 
   useEffect(() => {
-    document.body.classList.toggle('theme-frozen-teal', isLandingPage)
+    document.body.classList.add('theme-frozen-teal')
     return () => {
       document.body.classList.remove('theme-frozen-teal')
     }
-  }, [isLandingPage])
+  }, [])
 
   function navigate(to) {
     if (!to || to === pathname) {
