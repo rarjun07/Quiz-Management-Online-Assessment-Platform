@@ -137,6 +137,7 @@ function formatDuration(seconds) {
 export default function App() {
   const [mode, setMode] = useState('register')
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? '')
+  const [pathname, setPathname] = useState(() => window.location.pathname || '/')
   const [user, setUser] = useState(null)
   const [roleInfo, setRoleInfo] = useState(null)
   const [probeMessage, setProbeMessage] = useState('')
@@ -676,6 +677,7 @@ export default function App() {
       setToken('')
       setUser(null)
       setNotice('Session cleared.')
+      navigate('/auth')
     }
   }
 
@@ -1139,6 +1141,58 @@ export default function App() {
     { label: 'Assessment', value: 'Timed quizzes and scoring' },
     { label: 'Insights', value: 'Analytics + leaderboard' },
   ]
+  const isLandingPage = pathname === '/'
+  const isAuthPage = pathname === '/auth'
+  const isAdminPage = pathname === '/admin'
+  const isStudentPage = pathname === '/student'
+  const isDashboardPage = pathname === '/dashboard'
+  const isWorkspacePage = isAdminPage || isStudentPage || isDashboardPage
+
+  useEffect(() => {
+    const onPopState = () => setPathname(window.location.pathname || '/')
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      if (isDashboardPage || isAdminPage || isStudentPage) {
+        navigate('/auth')
+      }
+      return
+    }
+
+    if (isDashboardPage || isAuthPage) {
+      navigate(user.role === 'ADMIN' ? '/admin' : '/student')
+    }
+
+    if (isAdminPage && user.role !== 'ADMIN') {
+      navigate('/student')
+    }
+
+    if (isStudentPage && user.role !== 'STUDENT') {
+      navigate('/admin')
+    }
+  }, [isAdminPage, isAuthPage, isDashboardPage, isStudentPage, user])
+
+  useEffect(() => {
+    const titleMap = {
+      '/': 'QuizFlow | Quiz Management',
+      '/auth': 'QuizFlow | Sign In',
+      '/dashboard': 'QuizFlow | Dashboard',
+      '/admin': 'QuizFlow | Admin',
+      '/student': 'QuizFlow | Student',
+    }
+    document.title = titleMap[pathname] ?? 'QuizFlow'
+  }, [pathname])
+
+  function navigate(to) {
+    if (!to || to === pathname) {
+      return
+    }
+    window.history.pushState({}, '', to)
+    setPathname(to)
+  }
 
   return (
     <main className="shell">
@@ -1152,10 +1206,27 @@ export default function App() {
         </div>
 
         <nav className="topbar-nav" aria-label="Primary">
-          <span>Launch</span>
-          <span>Dashboard</span>
-          <span>Reports</span>
-          <span>Security</span>
+          <button type="button" className={isLandingPage ? 'topbar-link active' : 'topbar-link'} onClick={() => navigate('/')}>
+            Home
+          </button>
+          <button type="button" className={isAuthPage ? 'topbar-link active' : 'topbar-link'} onClick={() => navigate('/auth')}>
+            Auth
+          </button>
+          <button
+            type="button"
+            className={isWorkspacePage ? 'topbar-link active' : 'topbar-link'}
+            onClick={() => navigate(user ? (user.role === 'ADMIN' ? '/admin' : '/student') : '/dashboard')}
+          >
+            Workspace
+          </button>
+          <button
+            type="button"
+            className="topbar-link"
+            onClick={() => navigate(user?.role === 'ADMIN' ? '/admin' : '/student')}
+            disabled={!user}
+          >
+            Role view
+          </button>
         </nav>
 
         <div className="topbar-status">
@@ -1164,151 +1235,234 @@ export default function App() {
         </div>
       </header>
 
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Quiz Management Platform</p>
-          <h1>Build, run, and measure assessments in one workspace.</h1>
-          <p className="lede">
-            A polished FastAPI and React product for admin control, student quiz delivery, timed
-            attempts, performance analytics, and leaderboard tracking.
-          </p>
+      {isLandingPage ? (
+        <section className="hero landing-hero">
+          <div className="hero-copy">
+            <p className="eyebrow">Quiz Management Platform</p>
+            <h1>Build, run, and measure assessments in one workspace.</h1>
+            <p className="lede">
+              A polished FastAPI and React product for admin control, student quiz delivery, timed
+              attempts, performance analytics, and leaderboard tracking.
+            </p>
 
-          <div className="status-row">
-            <span className="pill">{statusText}</span>
-            <span className="notice">{notice}</span>
+            <div className="status-row">
+              <span className="pill">{statusText}</span>
+              <span className="notice">{notice}</span>
+            </div>
+
+            <div className="hero-actions">
+              <button className="primary" type="button" onClick={() => navigate('/auth')}>
+                Open auth
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => navigate(user ? (user.role === 'ADMIN' ? '/admin' : '/student') : '/dashboard')}
+              >
+                Open workspace
+              </button>
+            </div>
+
+            <div className="marketing-grid">
+              {marketingStats.map((item) => (
+                <article className="marketing-card" key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </article>
+              ))}
+            </div>
           </div>
 
-          <div className="marketing-grid">
-            {marketingStats.map((item) => (
-              <article className="marketing-card" key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div className="hero-aside">
-          <AuthPanel
-            mode={mode}
-            onModeChange={setMode}
-            onSubmit={handleSubmit}
-            loading={loading}
-            error={error}
-          />
-
-          <section className="session-card">
-            <h2>Current session</h2>
-            {user ? (
-              <>
-                <p>
-                  <strong>{user.name}</strong> - {user.email}
-                </p>
-                <p>
-                  Role: <code>{user.role}</code>
-                </p>
-                <p>
-                  Status: <code>{user.status}</code>
-                </p>
-                {roleInfo ? (
-                  <p>
-                    Role endpoint: <code>{roleInfo.role}</code> / <code>{roleInfo.status}</code>
-                  </p>
-                ) : null}
-                <button className="secondary" type="button" onClick={handleLogout}>
-                  Logout
-                </button>
-              </>
-            ) : (
-              <p>Register or log in to verify the backend auth flow.</p>
-            )}
+          <section className="feature-card landing-panel tone-admin">
+            <div className="feature-heading">
+              <p className="eyebrow">Product modules</p>
+              <h3>What the platform includes</h3>
+            </div>
+            <ul>
+              <li>Separate admin and student pages</li>
+              <li>Quiz creation, publishing, and timed attempts</li>
+              <li>Results, history, analytics, and leaderboard views</li>
+              <li>JWT auth with protected backend routes</li>
+            </ul>
           </section>
-        </div>
+        </section>
+      ) : null}
 
-        {user ? (
-          <>
-            <ProtectedCard
-              title="Protected routes"
-              description="These checks mirror the Day 3 backend dependencies."
-              tone="admin"
-              items={[
-                'GET /api/v1/auth/me - current authenticated user',
-                'GET /api/v1/admin/me - admin-only profile',
-                'GET /api/v1/student/me - student-only profile',
-              ]}
+      {isAuthPage ? (
+        <section className="hero auth-hero">
+          <div className="hero-copy">
+            <p className="eyebrow">Secure access</p>
+            <h1>Sign in to your admin or student workspace.</h1>
+            <p className="lede">
+              Use the same backend contract as the live platform. Authentication stores a JWT and
+              unlocks the correct role-based page after login.
+            </p>
+            <div className="status-row">
+              <span className="pill">{statusText}</span>
+              <span className="notice">{notice}</span>
+            </div>
+          </div>
+
+          <div className="hero-aside">
+            <AuthPanel
+              mode={mode}
+              onModeChange={setMode}
+              onSubmit={handleSubmit}
+              loading={loading}
+              error={error}
             />
 
-            {user.role === 'ADMIN' ? (
-              <section className="dashboard-grid">
-                <ProtectedCard
-                  title="Admin dashboard"
-                  description="The control panel for managing the platform."
-                  tone="admin"
-                  items={[
-                    'User management',
-                    'Quiz management',
-                    'Category and question control',
-                    'Analytics and leaderboard foundations',
-                  ]}
-                />
-                <div className="action-panel">
-                  <h3>Admin route probes</h3>
-                  <p>Use the buttons to verify admin-only access.</p>
-                  <div className="button-row">
-                    <button className="secondary" type="button" onClick={() => probeAccess('/admin/me', 'Admin profile')}>
-                      Test admin profile
-                    </button>
-                    <button
-                      className="secondary"
-                      type="button"
-                      onClick={() => probeAccess('/admin/dashboard', 'Admin dashboard')}
-                    >
-                      Test admin dashboard
-                    </button>
-                  </div>
-                  {probeMessage ? <p className="helper">{probeMessage}</p> : null}
-                </div>
-              </section>
-            ) : (
-              <section className="dashboard-grid">
-                <ProtectedCard
-                  title="Student dashboard"
-                  description="The student experience for quiz participation."
-                  tone="student"
-                  items={[
-                    'Quiz listing and discovery',
-                    'Attempt history and results',
-                    'Performance tracking',
-                    'Leaderboard visibility',
-                  ]}
-                />
-                <div className="action-panel">
-                  <h3>Student route probes</h3>
-                  <p>Use the buttons to verify student-only access.</p>
-                  <div className="button-row">
-                    <button
-                      className="secondary"
-                      type="button"
-                      onClick={() => probeAccess('/student/me', 'Student profile')}
-                    >
-                      Test student profile
-                    </button>
-                    <button
-                      className="secondary"
-                      type="button"
-                      onClick={() => probeAccess('/student/dashboard', 'Student dashboard')}
-                    >
-                      Test student dashboard
-                    </button>
-                  </div>
-                  {probeMessage ? <p className="helper">{probeMessage}</p> : null}
-                </div>
-              </section>
-            )}
-          </>
-        ) : null}
+            <section className="session-card">
+              <h2>Current session</h2>
+              {user ? (
+                <>
+                  <p>
+                    <strong>{user.name}</strong> - {user.email}
+                  </p>
+                  <p>
+                    Role: <code>{user.role}</code>
+                  </p>
+                  <p>
+                    Status: <code>{user.status}</code>
+                  </p>
+                  {roleInfo ? (
+                    <p>
+                      Role endpoint: <code>{roleInfo.role}</code> / <code>{roleInfo.status}</code>
+                    </p>
+                  ) : null}
+                  <button className="secondary" type="button" onClick={handleLogout}>
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <p>Register or log in to verify the backend auth flow.</p>
+              )}
+            </section>
+          </div>
+        </section>
+      ) : null}
 
-        {user?.role === 'ADMIN' ? (
+      {isWorkspacePage ? (
+        <>
+          {user ? (
+            <>
+              <section className="workspace-status-card">
+                <div>
+                  <p className="eyebrow">Workspace</p>
+                  <h2>{user.role === 'ADMIN' ? 'Admin control center' : 'Student learning center'}</h2>
+                  <p className="helper">
+                    {user.name} - {user.email}
+                  </p>
+                </div>
+                <div className="status-row">
+                  <span className="pill">{statusText}</span>
+                  <span className="notice">{notice}</span>
+                </div>
+                <div className="button-row">
+                  <button className="secondary" type="button" onClick={() => navigate('/auth')}>
+                    Account
+                  </button>
+                  <button className="secondary" type="button" onClick={handleLogout}>
+                    Logout
+                  </button>
+                </div>
+              </section>
+
+              <ProtectedCard
+                title="Protected routes"
+                description="These checks mirror the Day 3 backend dependencies."
+                tone="admin"
+                items={[
+                  'GET /api/v1/auth/me - current authenticated user',
+                  'GET /api/v1/admin/me - admin-only profile',
+                  'GET /api/v1/student/me - student-only profile',
+                ]}
+              />
+
+              {user.role === 'ADMIN' ? (
+                <section className="dashboard-grid">
+                  <ProtectedCard
+                    title="Admin dashboard"
+                    description="The control panel for managing the platform."
+                    tone="admin"
+                    items={[
+                      'User management',
+                      'Quiz management',
+                      'Category and question control',
+                      'Analytics and leaderboard foundations',
+                    ]}
+                  />
+                  <div className="action-panel">
+                    <h3>Admin route probes</h3>
+                    <p>Use the buttons to verify admin-only access.</p>
+                    <div className="button-row">
+                      <button className="secondary" type="button" onClick={() => probeAccess('/admin/me', 'Admin profile')}>
+                        Test admin profile
+                      </button>
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => probeAccess('/admin/dashboard', 'Admin dashboard')}
+                      >
+                        Test admin dashboard
+                      </button>
+                    </div>
+                    {probeMessage ? <p className="helper">{probeMessage}</p> : null}
+                  </div>
+                </section>
+              ) : (
+                <section className="dashboard-grid">
+                  <ProtectedCard
+                    title="Student dashboard"
+                    description="The student experience for quiz participation."
+                    tone="student"
+                    items={[
+                      'Quiz listing and discovery',
+                      'Attempt history and results',
+                      'Performance tracking',
+                      'Leaderboard visibility',
+                    ]}
+                  />
+                  <div className="action-panel">
+                    <h3>Student route probes</h3>
+                    <p>Use the buttons to verify student-only access.</p>
+                    <div className="button-row">
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => probeAccess('/student/me', 'Student profile')}
+                      >
+                        Test student profile
+                      </button>
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => probeAccess('/student/dashboard', 'Student dashboard')}
+                      >
+                        Test student dashboard
+                      </button>
+                    </div>
+                    {probeMessage ? <p className="helper">{probeMessage}</p> : null}
+                  </div>
+                </section>
+              )}
+            </>
+          ) : (
+            <section className="table-card workspace-locked">
+              <p className="eyebrow">Workspace locked</p>
+              <h2>Sign in to open the dashboard.</h2>
+              <p className="helper">
+                The admin and student views are available after authentication.
+              </p>
+              <button className="primary" type="button" onClick={() => navigate('/auth')}>
+                Go to auth
+              </button>
+            </section>
+          )}
+        </>
+      ) : null}
+
+        {isWorkspacePage && user?.role === 'ADMIN' ? (
           <section className="admin-board">
             <div className="admin-header">
               <div>
@@ -1976,7 +2130,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {user?.role === 'STUDENT' ? (
+        {isWorkspacePage && user?.role === 'STUDENT' ? (
           <section className="student-board">
             <div className="student-header">
               <div>
@@ -2529,7 +2683,6 @@ export default function App() {
             </div>
           </section>
         ) : null}
-      </section>
     </main>
   )
 }

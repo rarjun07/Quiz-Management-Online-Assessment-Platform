@@ -154,7 +154,7 @@ code {
   justify-content: center;
 }
 
-.topbar-nav span,
+.topbar-link,
 .topbar-status {
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -164,8 +164,33 @@ code {
   color: var(--muted);
 }
 
-.topbar-nav span {
-  font-weight: 700;
+.topbar-link {
+  font-weight: 800;
+}
+
+.topbar-link.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(29, 78, 216, 0.18);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+.topbar-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.topbar-link {
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.topbar-link:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .topbar-status {
@@ -173,6 +198,10 @@ code {
   align-items: center;
   gap: 10px;
   white-space: nowrap;
+}
+
+.topbar-nav .topbar-link {
+  font-weight: 700;
 }
 
 .status-dot {
@@ -232,6 +261,28 @@ code {
   position: relative;
   z-index: 1;
   max-width: 70ch;
+}
+
+.hero-actions {
+  margin-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.landing-panel {
+  align-self: start;
+}
+
+.workspace-status-card {
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 14px;
 }
 
 .eyebrow {
