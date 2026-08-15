@@ -332,12 +332,22 @@ body.theme-frozen-teal .profile-button {
   z-index: 40;
 }
 
+body.theme-frozen-teal .profile-menu {
+  background: rgba(249, 252, 250, 0.98);
+  border-color: rgba(19, 67, 61, 0.14);
+  box-shadow: 0 30px 80px rgba(9, 44, 40, 0.16);
+}
+
 .profile-menu-header {
   display: flex;
   align-items: flex-start;
   gap: 14px;
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+body.theme-frozen-teal .profile-menu-header {
+  border-bottom-color: rgba(19, 67, 61, 0.1);
 }
 
 .profile-menu-avatar {
@@ -352,6 +362,11 @@ body.theme-frozen-teal .profile-button {
   font-weight: 800;
   box-shadow: 0 14px 28px rgba(29, 78, 216, 0.22);
   flex: none;
+}
+
+body.theme-frozen-teal .profile-menu-avatar {
+  background: linear-gradient(135deg, #0f2b28 0%, #1c6a61 58%, #8ac7b0 100%);
+  box-shadow: 0 14px 28px rgba(9, 44, 40, 0.18);
 }
 
 .profile-menu-title {
@@ -386,6 +401,13 @@ body.theme-frozen-teal .profile-button {
   text-transform: uppercase;
 }
 
+body.theme-frozen-teal .profile-menu-badges span,
+body.theme-frozen-teal .profile-menu-meta span {
+  background: rgba(225, 238, 232, 0.96);
+  color: #1c6a61;
+  border: 1px solid rgba(19, 67, 61, 0.12);
+}
+
 .profile-menu-body {
   display: grid;
   gap: 10px;
@@ -401,6 +423,11 @@ body.theme-frozen-teal .profile-button {
   display: grid;
   gap: 4px;
   color: var(--text);
+}
+
+body.theme-frozen-teal .profile-menu-item {
+  background: linear-gradient(180deg, rgba(249, 252, 250, 0.96), rgba(237, 244, 240, 0.96));
+  border-color: rgba(19, 67, 61, 0.1);
 }
 
 .profile-menu-item strong {
@@ -422,6 +449,11 @@ body.theme-frozen-teal .profile-button {
   gap: 6px;
 }
 
+body.theme-frozen-teal .profile-menu-meta {
+  background: rgba(237, 244, 240, 0.96);
+  border-color: rgba(19, 67, 61, 0.1);
+}
+
 .profile-menu-meta strong {
   font-size: 0.98rem;
 }
@@ -435,6 +467,16 @@ body.theme-frozen-teal .profile-button {
 
 .profile-menu-footer {
   padding-top: 4px;
+}
+
+body.theme-frozen-teal .profile-menu-footer .secondary {
+  background: rgba(227, 238, 233, 0.96);
+  color: #35544f;
+  border: 1px solid rgba(19, 67, 61, 0.12);
+}
+
+body.theme-frozen-teal .profile-menu-footer .secondary:hover {
+  background: rgba(216, 232, 225, 0.98);
 }
 
 .full-width {
