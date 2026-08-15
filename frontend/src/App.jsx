@@ -186,6 +186,7 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [roleInfo, setRoleInfo] = useState(null)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [studentActiveTab, setStudentActiveTab] = useState('start-quiz')
   const [probeMessage, setProbeMessage] = useState('')
   const [studentQuizzes, setStudentQuizzes] = useState([])
   const [selectedStudentQuizId, setSelectedStudentQuizId] = useState('')
@@ -1233,6 +1234,12 @@ export default function App() {
   }, [pathname, user?.id])
 
   useEffect(() => {
+    if (isStudentPage) {
+      setStudentActiveTab('start-quiz')
+    }
+  }, [isStudentPage])
+
+  useEffect(() => {
     if (!profileMenuOpen) {
       return
     }
@@ -1315,7 +1322,7 @@ export default function App() {
     navigate(dashboardPath)
   }
 
-  function openStudentQuizzes() {
+  function scrollToStudentSection(sectionId, tabName) {
     if (!user) {
       navigate('/login')
       return
@@ -1326,7 +1333,8 @@ export default function App() {
       return
     }
 
-    document.getElementById('student-quizzes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setStudentActiveTab(tabName)
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
@@ -1366,13 +1374,29 @@ export default function App() {
               </button>
             </>
           ) : isStudentRole ? (
-            <button
-              type="button"
-              className={isStudentPage ? 'topbar-link active' : 'topbar-link'}
-              onClick={openStudentQuizzes}
-            >
-              Quizzes
-            </button>
+            <>
+              <button
+                type="button"
+                className={studentActiveTab === 'start-quiz' ? 'topbar-link active' : 'topbar-link'}
+                onClick={() => scrollToStudentSection('student-quizzes', 'start-quiz')}
+              >
+                Start quiz
+              </button>
+              <button
+                type="button"
+                className={studentActiveTab === 'ranking' ? 'topbar-link active' : 'topbar-link'}
+                onClick={() => scrollToStudentSection('student-ranking', 'ranking')}
+              >
+                Ranking
+              </button>
+              <button
+                type="button"
+                className={studentActiveTab === 'quiz-details' ? 'topbar-link active' : 'topbar-link'}
+                onClick={() => scrollToStudentSection('quiz-details', 'quiz-details')}
+              >
+                Quiz details
+              </button>
+            </>
           ) : (
             <>
               <button type="button" className="topbar-link active" onClick={openWorkspaceDetails}>
@@ -2467,7 +2491,7 @@ export default function App() {
             )}
 
             {studentLeaderboard ? (
-              <section className="table-card leaderboard-panel">
+              <section className="table-card leaderboard-panel" id="student-ranking">
                 <div className="table-heading">
                   <h3>Leaderboard</h3>
                   <span>{studentLeaderboard.overall.length} students ranked</span>
@@ -2608,7 +2632,7 @@ export default function App() {
               </aside>
 
               <div className="student-main">
-                <section className="table-card">
+                <section className="table-card" id="quiz-details">
                   <div className="table-heading">
                     <h3>Quiz details</h3>
                     <button
