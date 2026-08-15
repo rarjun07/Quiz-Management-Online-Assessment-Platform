@@ -1213,6 +1213,7 @@ export default function App() {
   const isStudentPage = pathname === '/student'
   const isDashboardPage = pathname === '/dashboard'
   const isWorkspacePage = isAdminPage || isStudentPage || isDashboardPage
+  const isStudentRole = user?.role === 'STUDENT'
   const dashboardPath = user?.role === 'ADMIN' ? '/admin' : '/student'
   const workspaceTitle = user?.role === 'ADMIN' ? 'Admin control center' : 'Student learning center'
   const workspaceSubtitle = roleInfo
@@ -1314,6 +1315,20 @@ export default function App() {
     navigate(dashboardPath)
   }
 
+  function openStudentQuizzes() {
+    if (!user) {
+      navigate('/login')
+      return
+    }
+
+    if (!isStudentPage) {
+      navigate('/student')
+      return
+    }
+
+    document.getElementById('student-quizzes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -1350,6 +1365,14 @@ export default function App() {
                 Register
               </button>
             </>
+          ) : isStudentRole ? (
+            <button
+              type="button"
+              className={isStudentPage ? 'topbar-link active' : 'topbar-link'}
+              onClick={openStudentQuizzes}
+            >
+              Quizzes
+            </button>
           ) : (
             <>
               <button type="button" className="topbar-link active" onClick={openWorkspaceDetails}>
@@ -2560,7 +2583,7 @@ export default function App() {
             )}
 
             <div className="student-layout">
-              <aside className="table-card student-sidebar">
+              <aside className="table-card student-sidebar" id="student-quizzes">
                 <div className="table-heading">
                   <h3>Published quizzes</h3>
                   <span>{studentQuizzes.length} available</span>
