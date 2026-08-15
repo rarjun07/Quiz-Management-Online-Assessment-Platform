@@ -48,7 +48,7 @@ function AuthPanel({ mode, onModeChange, onSubmit, loading, error, showModeToggl
       }}
     >
       <div className="auth-panel-head">
-        {mode === 'login' ? (
+        {mode === 'login' || mode === 'register' ? (
           <div className="auth-avatar" aria-hidden="true">
             <UserOutlineIcon />
           </div>
