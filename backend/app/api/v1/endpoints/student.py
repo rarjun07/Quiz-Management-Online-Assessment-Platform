@@ -40,6 +40,12 @@ from app.schemas.student_quiz import (
 router = APIRouter(prefix="/student", tags=["Student"])
 
 
+def ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def build_attempt_review_response(db: Session, attempt: Attempt, quiz: Quiz, result: AttemptResult) -> StudentAttemptSubmitResponse:
     questions = (
         db.query(Question)
@@ -393,6 +399,20 @@ def start_quiz(
     quiz = db.get(Quiz, quiz_id)
     if quiz is None or not quiz.is_published:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+
+    completed_attempts = (
+        db.query(func.count(AttemptResult.id))
+        .join(Attempt, Attempt.id == AttemptResult.attempt_id)
+        .filter(Attempt.user_id == current_user.id, Attempt.quiz_id == quiz.id)
+        .scalar()
+        or 0
+    )
+    if completed_attempts >= quiz.max_attempts:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Maximum attempts reached for this quiz",
+        )
+
     attempt = create_attempt(db, quiz, current_user)
     question_count = db.query(func.count(Question.id)).filter(Question.quiz_id == quiz.id).scalar() or 0
     return StudentQuizStartResponse(
@@ -469,9 +489,19 @@ def submit_quiz_attempt(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz has no questions")
 
     question_map = {question.id: question for question in questions}
-    answers_by_question = {
-        answer.question_id: answer.selected_option_id for answer in payload.answers if answer.question_id in question_map
-    }
+    seen_questions: set[int] = set()
+    answers_by_question: dict[int, int | None] = {}
+    for answer in payload.answers:
+        if answer.question_id not in question_map:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid question in submission")
+        if answer.question_id in seen_questions:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate question answer submitted")
+        seen_questions.add(answer.question_id)
+        if answer.selected_option_id is not None:
+            valid_option_ids = {option.id for option in question_map[answer.question_id].options}
+            if answer.selected_option_id not in valid_option_ids:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid option in submission")
+        answers_by_question[answer.question_id] = answer.selected_option_id
     submit_rows = [
         {"question_id": question.id, "selected_option_id": answers_by_question.get(question.id)}
         for question in questions
@@ -487,7 +517,8 @@ def submit_quiz_attempt(
     results: list[StudentAttemptQuestionResult] = []
 
     submitted_at = datetime.now(timezone.utc)
-    time_taken_seconds = max(0, int((submitted_at - attempt.started_at).total_seconds()))
+    started_at = ensure_utc(attempt.started_at)
+    time_taken_seconds = max(0, int((submitted_at - started_at).total_seconds()))
 
     for question in questions:
         selected_option_id = answers_by_question.get(question.id)

@@ -342,9 +342,6 @@ export default function App() {
       .then((data) => {
         if (!cancelled) {
           setStudentLeaderboard(data)
-          if (!selectedLeaderboardCategory && data.selected_category) {
-            setSelectedLeaderboardCategory(data.selected_category)
-          }
         }
       })
       .catch((err) => {
