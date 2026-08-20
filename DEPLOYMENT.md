@@ -28,7 +28,7 @@ docker compose up --build
 1. Create a managed PostgreSQL database.
 2. Deploy `backend/` with `backend/Dockerfile`.
 3. Set backend environment variables from the required environment list.
-4. Run `alembic upgrade head` against the production database.
+4. The backend container runs `alembic upgrade head` automatically before starting the API.
 5. Deploy `frontend/` with `frontend/Dockerfile`.
 6. Set `VITE_API_URL` to the deployed backend API URL before building the frontend.
 7. Restrict backend CORS origins to the deployed frontend domain.
