@@ -45,3 +45,33 @@ cd ../frontend && npm run build
 - The backend now returns security headers and rate-limits authentication endpoints.
 - Password reset uses signed, short-lived reset tokens and sends them by SMTP when mail settings are configured.
 - Alembic migrations are included. `Base.metadata.create_all` is acceptable for local development only.
+
+## Free Render Deployment
+
+This repository includes `render.yaml` for a free Render deployment:
+
+- `quizflow-backend`: FastAPI backend from `backend/Dockerfile`.
+- `quizflow-frontend`: static React frontend.
+- `quizflow-db`: free PostgreSQL database.
+
+Steps:
+
+1. Push the latest code to GitHub.
+2. Open Render and choose **New > Blueprint**.
+3. Connect the GitHub repository.
+4. Select the repository root so Render can read `render.yaml`.
+5. Enter `INITIAL_ADMIN_PASSWORD` when Render asks for secret values.
+6. Deploy the blueprint.
+7. After deploy, open the frontend URL.
+8. Login as admin with `INITIAL_ADMIN_EMAIL` and the password you entered.
+
+If Render changes the generated backend or frontend URL, update these environment variables in Render:
+
+- Backend service: `FRONTEND_URL`, `CORS_ORIGINS`
+- Frontend service: `VITE_API_URL`
+
+Expected values when the service names are unchanged:
+
+- `FRONTEND_URL=https://quizflow-frontend.onrender.com`
+- `CORS_ORIGINS=https://quizflow-frontend.onrender.com`
+- `VITE_API_URL=https://quizflow-backend.onrender.com/api/v1`
