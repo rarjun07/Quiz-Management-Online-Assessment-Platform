@@ -28,7 +28,7 @@ docker compose up --build
 1. Create a managed PostgreSQL database.
 2. Deploy `backend/` with `backend/Dockerfile`.
 3. Set backend environment variables from the required environment list.
-4. The backend container runs `alembic upgrade head` automatically before starting the API.
+4. The backend creates the required database tables on startup for the free demo deployment.
 5. Deploy `frontend/` with `frontend/Dockerfile`.
 6. Set `VITE_API_URL` to the deployed backend API URL before building the frontend.
 7. Restrict backend CORS origins to the deployed frontend domain.
@@ -44,7 +44,7 @@ cd ../frontend && npm run build
 
 - The backend now returns security headers and rate-limits authentication endpoints.
 - Password reset uses signed, short-lived reset tokens and sends them by SMTP when mail settings are configured.
-- Alembic migrations are included. `Base.metadata.create_all` is acceptable for local development only.
+- Alembic migrations are included. The free Render demo uses startup table creation to avoid paid-only pre-deploy commands.
 
 ## Free Render Deployment
 
