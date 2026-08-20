@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import Session
 
 from app.core.constants import UserRole, UserStatus
 from app.crud.category import create_category, delete_category, get_category_by_id, list_categories, update_category
 from app.crud.admin import delete_user, get_user_by_id, list_users, update_user_status
+from app.crud.notification import notify_active_students
 from app.crud.question import create_question, delete_question, get_question_by_id, list_questions, update_question
 from app.crud.quiz import create_quiz, delete_quiz, get_quiz_by_id, list_quizzes, update_quiz, update_quiz_publish_state
 from app.dependencies import require_admin
 from app.dependencies import get_db
+from app.api.v1.endpoints.student import build_attempt_review_response
 from app.models.attempt import Attempt
 from app.models.attempt_result import AttemptResult
 from app.models.category import Category
@@ -18,6 +20,8 @@ from app.models.question import Question
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryListResponse, CategoryRead, CategoryUpdate
 from app.schemas.admin import (
+    AdminAttemptListItem,
+    AdminAttemptListResponse,
     AdminAnalyticsAttemptItem,
     AdminAnalyticsCategoryItem,
     AdminAnalyticsQuizItem,
@@ -29,6 +33,7 @@ from app.schemas.admin import (
 from app.schemas.auth import UserRead
 from app.schemas.question import QuestionCreate, QuestionListResponse, QuestionRead, QuestionUpdate
 from app.schemas.quiz import QuizCreate, QuizListResponse, QuizPublishUpdate, QuizRead, QuizUpdate
+from app.schemas.student_quiz import StudentAttemptSubmitResponse
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -166,6 +171,70 @@ def admin_analytics(
     )
 
 
+@router.get("/attempts", response_model=AdminAttemptListResponse)
+def read_attempts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+    search: str | None = Query(default=None, min_length=1, max_length=100),
+    status_filter: str | None = Query(default=None, alias="status"),
+) -> AdminAttemptListResponse:
+    query = (
+        db.query(Attempt, Quiz, User, AttemptResult)
+        .join(Quiz, Quiz.id == Attempt.quiz_id)
+        .join(User, User.id == Attempt.user_id)
+        .outerjoin(AttemptResult, AttemptResult.attempt_id == Attempt.id)
+    )
+    if search:
+        term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(Quiz.title.ilike(term), Quiz.category.ilike(term), User.name.ilike(term), User.email.ilike(term))
+        )
+    if status_filter:
+        query = query.filter(Attempt.status == status_filter)
+
+    rows = query.order_by(Attempt.started_at.desc()).all()
+    items = [
+        AdminAttemptListItem(
+            attempt_id=attempt.id,
+            user_id=user.id,
+            user_name=user.name,
+            user_email=user.email,
+            quiz_id=quiz.id,
+            quiz_title=quiz.title,
+            category=quiz.category,
+            status=attempt.status,
+            started_at=attempt.started_at,
+            expires_at=attempt.expires_at,
+            submitted_at=result.submitted_at if result else None,
+            score=result.score if result else None,
+            total_marks=result.total_marks if result else None,
+            percentage=result.percentage if result else None,
+            passed=result.passed if result else None,
+            time_taken_seconds=result.time_taken_seconds if result else None,
+        )
+        for attempt, quiz, user, result in rows
+    ]
+    return AdminAttemptListResponse(items=items, total=len(items), search=search, status=status_filter)
+
+
+@router.get("/attempts/{attempt_id}", response_model=StudentAttemptSubmitResponse)
+def read_attempt_result(
+    attempt_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> StudentAttemptSubmitResponse:
+    attempt = db.get(Attempt, attempt_id)
+    if attempt is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found")
+    result = db.query(AttemptResult).filter(AttemptResult.attempt_id == attempt.id).first()
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Attempt has not been submitted yet")
+    quiz = db.get(Quiz, attempt.quiz_id)
+    if quiz is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    return build_attempt_review_response(db, attempt, quiz, result)
+
+
 @router.get("/users", response_model=AdminUserListResponse)
 def read_users(
     db: Session = Depends(get_db),
@@ -232,7 +301,16 @@ def read_quizzes(
 def add_quiz(
     payload: QuizCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)
 ) -> Quiz:
-    return create_quiz(db, payload)
+    quiz = create_quiz(db, payload)
+    if quiz.is_published:
+        notify_active_students(
+            db,
+            title="New quiz published",
+            message=f"{quiz.title} is now available in {quiz.category}.",
+            category="QUIZ",
+            action_url="/student/start-quiz",
+        )
+    return quiz
 
 
 @router.get("/quizzes/{quiz_id}", response_model=QuizRead)
@@ -255,7 +333,17 @@ def edit_quiz(
     quiz = get_quiz_by_id(db, quiz_id)
     if quiz is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
-    return update_quiz(db, quiz, payload)
+    was_published = quiz.is_published
+    updated_quiz = update_quiz(db, quiz, payload)
+    if not was_published and updated_quiz.is_published:
+        notify_active_students(
+            db,
+            title="New quiz published",
+            message=f"{updated_quiz.title} is now available in {updated_quiz.category}.",
+            category="QUIZ",
+            action_url="/student/start-quiz",
+        )
+    return updated_quiz
 
 
 @router.patch("/quizzes/{quiz_id}/publish", response_model=QuizRead)
@@ -268,7 +356,17 @@ def set_quiz_publish_state(
     quiz = get_quiz_by_id(db, quiz_id)
     if quiz is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
-    return update_quiz_publish_state(db, quiz, is_published=payload.is_published, status=payload.status)
+    was_published = quiz.is_published
+    updated_quiz = update_quiz_publish_state(db, quiz, is_published=payload.is_published, status=payload.status)
+    if not was_published and updated_quiz.is_published:
+        notify_active_students(
+            db,
+            title="New quiz published",
+            message=f"{updated_quiz.title} is now available in {updated_quiz.category}.",
+            category="QUIZ",
+            action_url="/student/start-quiz",
+        )
+    return updated_quiz
 
 
 @router.delete("/quizzes/{quiz_id}", status_code=status.HTTP_204_NO_CONTENT)

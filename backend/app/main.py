@@ -2,17 +2,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
-from app.db.session import Base, engine
+from app.core.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
+from app.db.seed import ensure_initial_admin
+from app.db.session import Base, SessionLocal, engine
 from app.models.attempt import Attempt  # noqa: F401
 from app.models.attempt_answer import AttemptAnswer  # noqa: F401
 from app.models.attempt_result import AttemptResult  # noqa: F401
 from app.models.category import Category  # noqa: F401
+from app.models.notification import Notification  # noqa: F401
 from app.models.option import Option  # noqa: F401
 from app.models.question import Question  # noqa: F401
 from app.models.quiz import Quiz  # noqa: F401
 from app.models.user import User  # noqa: F401
 
 app = FastAPI(title="Quiz Management API", version="0.1.0")
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +39,11 @@ app.include_router(api_router, prefix="/api/v1")
 @app.on_event("startup")
 def create_database_tables() -> None:
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ensure_initial_admin(db)
+    finally:
+        db.close()
 
 
 @app.get("/")

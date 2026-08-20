@@ -2,21 +2,29 @@ from datetime import datetime, timezone
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.crud.attempt import create_attempt, save_attempt_answers
 from app.crud.attempt_result import upsert_attempt_result
+from app.crud.notification import (
+    create_notification,
+    list_notifications,
+    mark_all_notifications_read,
+    mark_notification_read,
+)
 from app.dependencies import get_db
 from app.dependencies import require_student
 from app.models.attempt import Attempt
 from app.models.attempt_answer import AttemptAnswer
+from app.models.notification import Notification
 from app.models.option import Option
 from app.models.question import Question
 from app.models.attempt_result import AttemptResult
 from app.models.quiz import Quiz
 from app.models.user import User
 from app.schemas.auth import UserRead
+from app.schemas.notification import NotificationListResponse, NotificationRead
 from app.schemas.student_quiz import (
     StudentDashboardAttemptPoint,
     StudentDashboardCategoryPerformance,
@@ -98,9 +106,90 @@ def build_attempt_review_response(db: Session, attempt: Attempt, quiz: Quiz, res
     )
 
 
+def build_overall_rank_map(db: Session) -> dict[int, int]:
+    attempt_rows = (
+        db.query(Attempt, AttemptResult, Quiz, User)
+        .join(AttemptResult, AttemptResult.attempt_id == Attempt.id)
+        .join(Quiz, Quiz.id == Attempt.quiz_id)
+        .join(User, User.id == Attempt.user_id)
+        .all()
+    )
+    buckets: dict[int, dict[str, object]] = {}
+    for _attempt, result, _quiz, user in attempt_rows:
+        bucket = buckets.setdefault(
+            user.id,
+            {
+                "user_name": user.name,
+                "attempts": 0,
+                "total_percentage": 0.0,
+                "best_score": 0.0,
+                "passed_attempts": 0,
+                "total_time_spent_seconds": 0,
+            },
+        )
+        bucket["attempts"] = int(bucket["attempts"]) + 1
+        bucket["total_percentage"] = float(bucket["total_percentage"]) + float(result.percentage)
+        bucket["best_score"] = max(float(bucket["best_score"]), float(result.percentage))
+        bucket["passed_attempts"] = int(bucket["passed_attempts"]) + (1 if result.passed else 0)
+        bucket["total_time_spent_seconds"] = int(bucket["total_time_spent_seconds"]) + int(result.time_taken_seconds)
+
+    ranked = sorted(
+        buckets.items(),
+        key=lambda item: (
+            -float(item[1]["total_percentage"]) / max(1, int(item[1]["attempts"])),
+            -int(item[1]["passed_attempts"]),
+            -float(item[1]["best_score"]),
+            int(item[1]["total_time_spent_seconds"]),
+            str(item[1]["user_name"]).lower(),
+        ),
+    )
+    return {user_id: index for index, (user_id, _values) in enumerate(ranked, start=1)}
+
+
 @router.get("/me", response_model=UserRead)
 def read_student_profile(current_user: User = Depends(require_student)) -> User:
     return current_user
+
+
+@router.get("/notifications", response_model=NotificationListResponse)
+def read_notifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student),
+    unread_only: bool = Query(default=False),
+    limit: int = Query(default=20, ge=1, le=50),
+) -> NotificationListResponse:
+    items, total, unread_count = list_notifications(
+        db,
+        user_id=current_user.id,
+        unread_only=unread_only,
+        limit=limit,
+    )
+    return NotificationListResponse(items=items, total=total, unread_count=unread_count)
+
+
+@router.patch("/notifications/read-all", response_model=NotificationListResponse)
+def read_all_notifications(
+    db: Session = Depends(get_db), current_user: User = Depends(require_student)
+) -> NotificationListResponse:
+    mark_all_notifications_read(db, user_id=current_user.id)
+    items, total, unread_count = list_notifications(db, user_id=current_user.id)
+    return NotificationListResponse(items=items, total=total, unread_count=unread_count)
+
+
+@router.patch("/notifications/{notification_id}/read", response_model=NotificationRead)
+def read_notification(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student),
+) -> Notification:
+    notification = (
+        db.query(Notification)
+        .filter(Notification.id == notification_id, Notification.user_id == current_user.id)
+        .first()
+    )
+    if notification is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    return mark_notification_read(db, notification=notification)
 
 
 @router.get("/dashboard")
@@ -315,14 +404,41 @@ def list_available_quizzes(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_student),
     search: str | None = Query(default=None, min_length=1, max_length=100),
+    category: str | None = Query(default=None, min_length=1, max_length=100),
+    difficulty: str | None = Query(default=None, min_length=1, max_length=50),
+    min_duration: int | None = Query(default=None, ge=1, le=300),
+    max_duration: int | None = Query(default=None, ge=1, le=300),
+    sort: str = Query(default="recent", pattern="^(recent|popular|title)$"),
 ) -> StudentQuizListResponse:
     query = db.query(Quiz).filter(Quiz.is_published.is_(True))
     if search:
         term = f"%{search.strip()}%"
-        query = query.filter(Quiz.title.ilike(term))
+        query = query.filter(or_(Quiz.title.ilike(term), Quiz.category.ilike(term)))
+    if category:
+        query = query.filter(Quiz.category == category)
+    if difficulty:
+        query = query.filter(Quiz.difficulty == difficulty)
+    if min_duration is not None:
+        query = query.filter(Quiz.duration >= min_duration)
+    if max_duration is not None:
+        query = query.filter(Quiz.duration <= max_duration)
 
     total = query.count()
-    quizzes = query.order_by(Quiz.created_at.desc()).all()
+    if sort == "popular":
+        attempt_counts = (
+            db.query(Attempt.quiz_id, func.count(Attempt.id).label("attempt_count"))
+            .group_by(Attempt.quiz_id)
+            .subquery()
+        )
+        quizzes = (
+            query.outerjoin(attempt_counts, Quiz.id == attempt_counts.c.quiz_id)
+            .order_by(desc(func.coalesce(attempt_counts.c.attempt_count, 0)), Quiz.created_at.desc())
+            .all()
+        )
+    elif sort == "title":
+        quizzes = query.order_by(Quiz.title.asc()).all()
+    else:
+        quizzes = query.order_by(Quiz.created_at.desc()).all()
     items: list[StudentQuizListItem] = []
     for quiz in quizzes:
         # Count questions without exposing answers.
@@ -478,6 +594,8 @@ def submit_quiz_attempt(
     if quiz is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
 
+    previous_rank = build_overall_rank_map(db).get(current_user.id)
+
     questions = (
         db.query(Question)
         .options(selectinload(Question.options))
@@ -518,7 +636,9 @@ def submit_quiz_attempt(
 
     submitted_at = datetime.now(timezone.utc)
     started_at = ensure_utc(attempt.started_at)
-    time_taken_seconds = max(0, int((submitted_at - started_at).total_seconds()))
+    expires_at = ensure_utc(attempt.expires_at)
+    scored_submitted_at = min(submitted_at, expires_at)
+    time_taken_seconds = max(0, int((scored_submitted_at - started_at).total_seconds()))
 
     for question in questions:
         selected_option_id = answers_by_question.get(question.id)
@@ -566,6 +686,22 @@ def submit_quiz_attempt(
         submitted_at=submitted_at,
         time_taken_seconds=time_taken_seconds,
     )
+    current_rank = build_overall_rank_map(db).get(current_user.id)
+    if current_rank and current_rank != previous_rank:
+        if previous_rank is None:
+            rank_message = f"You entered the overall ranking at #{current_rank}."
+        elif current_rank < previous_rank:
+            rank_message = f"Your overall ranking moved up from #{previous_rank} to #{current_rank}."
+        else:
+            rank_message = f"Your overall ranking moved from #{previous_rank} to #{current_rank}."
+        create_notification(
+            db,
+            user_id=current_user.id,
+            title="Ranking updated",
+            message=rank_message,
+            category="RANKING",
+            action_url="/student/ranking",
+        )
 
     return StudentAttemptSubmitResponse(
         attempt_id=attempt.id,

@@ -61,6 +61,32 @@ class AdminAnalyticsResponse(BaseModel):
     category_performance: list[AdminAnalyticsCategoryItem] = Field(default_factory=list)
 
 
+class AdminAttemptListItem(BaseModel):
+    attempt_id: int
+    user_id: int
+    user_name: str
+    user_email: str
+    quiz_id: int
+    quiz_title: str
+    category: str
+    status: str
+    started_at: datetime
+    expires_at: datetime
+    submitted_at: datetime | None = None
+    score: int | None = None
+    total_marks: int | None = None
+    percentage: float | None = None
+    passed: bool | None = None
+    time_taken_seconds: int | None = None
+
+
+class AdminAttemptListResponse(BaseModel):
+    items: list[AdminAttemptListItem] = Field(default_factory=list)
+    total: int
+    search: str | None = None
+    status: str | None = None
+
+
 class UserStatusUpdate(BaseModel):
     is_active: bool
     status: UserStatus

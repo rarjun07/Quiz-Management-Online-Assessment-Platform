@@ -23,3 +23,9 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None) ->
     )
     payload: dict[str, Any] = {"sub": subject, "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
+def create_password_reset_token(subject: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.password_reset_token_expire_minutes)
+    payload: dict[str, Any] = {"sub": subject, "purpose": "password_reset", "exp": expire}
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)

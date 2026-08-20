@@ -35,7 +35,6 @@ Full-stack internship project for an online quiz management and assessment syste
 
 - Admin and student role guards are already enforced in the backend
 - Frontend now reflects the signed-in role
-- Protected admin and student route probes are visible in the UI
 - Admin-only and student-only dashboard sections are separated in the app
 
 ## Day 4 progress
@@ -43,7 +42,7 @@ Full-stack internship project for an online quiz management and assessment syste
 - Admin dashboard statistics are shown in the frontend
 - Admin user management list is connected to the backend
 - Search, status filter, activate/deactivate, and delete actions are exposed
-- Admin route probes and dashboard layout are now part of the UI
+- Admin dashboard layout is now part of the UI
 
 ## Day 5 progress
 
@@ -108,6 +107,15 @@ Full-stack internship project for an online quiz management and assessment syste
 - Max-attempt enforcement is applied on quiz start
 - Time handling is normalized for reliable scoring and testing
 
+## Day 14 progress
+
+- Backend and frontend Dockerfiles are included
+- Docker Compose can run database, backend, and frontend services
+- Production environment variables are documented
+- Security headers and auth rate limiting are enabled
+- Alembic initial schema migration is included
+- Deployment checklist is available in `DEPLOYMENT.md`
+
 ## Repository layout
 
 - `backend/` - FastAPI application
@@ -117,7 +125,7 @@ Full-stack internship project for an online quiz management and assessment syste
 
 ## Run the stack
 
-1. Start PostgreSQL:
+1. Start PostgreSQL only:
 
 ```bash
 docker compose up -d db
@@ -130,6 +138,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -141,6 +150,12 @@ npm install
 npm run dev
 ```
 
+## Run the full stack with Docker
+
+```bash
+docker compose up --build
+```
+
 ## Next step
 
-Complete Day 14 deployment and documentation tasks.
+Configure a production email provider for password reset delivery and add database migrations before live deployment.
