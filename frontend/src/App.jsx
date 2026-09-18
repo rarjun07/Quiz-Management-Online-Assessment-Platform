@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-const apiBase = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1'
+const apiBase = import.meta.env.VITE_API_URL ?? 'https://quizflow-backend-qjxy.onrender.com/api/v1'
 const tokenKey = 'quiz_platform_token'
 
 const adminNavItems = [
